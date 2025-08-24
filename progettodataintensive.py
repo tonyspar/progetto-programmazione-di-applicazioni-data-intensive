@@ -1,116 +1,13 @@
 # %% [markdown]
-# Piattaforma
-# Metacritic
-# 
-# ## 1. Descrizione del problema e analisi esplorativa
-# ### Caricamento Librerie
-# Per prima cosa carichiamo le librerie per effettuare operazioni sui dati
-# 
-#     NumPy per creare e operare su array a N dimensioni
-#     pandas per caricare e manipolare dati tabulari
-#     matplotlib per creare grafici
-# 
-# Importiamo le librerie usando i loro alias convenzionali e abilitando l'inserimento dei grafici direttamente nel notebook
-# 
-# ```python
-# import numpy as np
-# import pandas as pd
-# import matplotlib.pyplot as plt
-# import surprise
-# surprise.__version__
-# %matplotlib inline
-# ```
-# 
-# ### Caricamento dei dati
-# ```python
-# import os.path
-# from urllib.request import urlretrieve
-# file = "nome.csv"
-# url = "url"
-# if not os.path.exists(file):
-#     urlretrieve(url, file)
-# data = pd.read_csv(file, index_col=0)
-# data.info()
-# ```
-# 
-# ### Descrizione problema
-# Il dataset in esame, contiene informazioni utili ...
-# 
-# ### Esplorazione dei dati
-# ```python
-# # Esempio di esplorazione dati
-# data.head()
-# data.describe()
-# ```
-# 
-# ```python
-# # Visualizzazione distribuzione
-# data.hist(figsize=(10,8))
-# plt.show()
-# ```
-# 
-# ---
-# 
-# ## 2. Feature preprocessing
-# Esempio di preprocessing:
-# ```python
-# # Gestione valori mancanti
-# data = data.fillna(0)
-# # Encoding variabili categoriche
-# data = pd.get_dummies(data)
-# ```
-# 
-# ---
-# 
-# ## 3. Modellazione
-# Esempio di modellazione:
-# ```python
-# from sklearn.model_selection import train_test_split
-# from sklearn.ensemble import RandomForestClassifier
-# 
-# X = data.drop('target', axis=1)
-# y = data['target']
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-# 
-# model = RandomForestClassifier()
-# model.fit(X_train, y_train)
-# ```
-# 
-# ---
-# 
-# ## 4. Valutazione dei modelli di classificazione
-# Esempio di valutazione:
-# ```python
-# from sklearn.metrics import classification_report, accuracy_score
-# 
-# y_pred = model.predict(X_test)
-# print(classification_report(y_test, y_pred))
-# print('Accuracy:', accuracy_score(y_test, y_pred))
-# ```
-# 
-# ---
-# 
-# ## 5. Analisi del modello migliore
-# Esempio di analisi:
-# ```python
-# # Analisi delle feature più importanti
-# importances = model.feature_importances_
-# features = X.columns
-# for feat, imp in sorted(zip(features, importances), key=lambda x: x[1], reverse=True):
-#     print(f"{feat}: {imp:.3f}")
-# ```
-# 
-# 
-
-# %% [markdown]
 # # da commentare
 
 # %%
 %pip install --upgrade pip
-%pip install surprise
+#%pip install surprise
 %pip uninstall numpy -y
 %pip install 'numpy<2.0,>=1.20'
 %pip install pandas
+%pip install scikit-learn
 !pip install numpy.typing
 !pip install -q kaggle
 !pip install jovian --upgrade --quiet
@@ -137,19 +34,19 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import surprise
+#import surprise
 import jovian
 from sklearn.datasets import fetch_openml
 # %%
 #NON RIESEGUIRE
-if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
-    ! mkdir ~/.kaggle
-    ! cp kaggle.json ~/.kaggle/
-    ! chmod 600 ~/.kaggle/kaggle.json
-    ! kaggle datasets list
-    !kaggle datasets download antonkozyriev/game-recommendations-on-steam
-    !mkdir games
-    !unzip game-recommendations-on-steam.zip -d games_dataset
+# if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
+#     ! mkdir ~/.kaggle
+#     ! cp kaggle.json ~/.kaggle/
+#     ! chmod 600 ~/.kaggle/kaggle.json
+#     ! kaggle datasets list
+#     !kaggle datasets download antonkozyriev/game-recommendations-on-steam
+#     !mkdir games
+#     !unzip game-recommendations-on-steam.zip -d games_dataset
 
 # %% [markdown]
 # ## dataset principale
@@ -200,7 +97,7 @@ data.drop(columns='Tags', inplace=True)
 data
 # %%
 rec_data=pd.read_csv("games_dataset/recommendations.csv", index_col=0)
-rec_data
+rec_data.insert
 
 # %% [markdown]
 # <a style='text-decoration:none;line-height:16px;display:flex;color:#5B5B62;padding:10px;justify-content:end;' href='https://deepnote.com?utm_source=created-in-deepnote-cell&projectId=65e2a800-7967-42b4-96c9-bf5538064c40' target="_blank">
