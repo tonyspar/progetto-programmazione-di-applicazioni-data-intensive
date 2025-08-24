@@ -25,8 +25,7 @@ packages = [
     "numpy<2.0,>=1.20",
     "pandas",
     "scikit-learn",
-    "matplotlib",
-    "scikit-surprise",  # This is the correct package name for 'surprise'
+    "matplotlib", # This is the correct package name for 'surprise'
     "jovian --upgrade --quiet",
     "kaggle",
     "numpy.typing"
@@ -55,10 +54,11 @@ def install(package):
         run_cmd(f"!pip install {package}")
 
 # Uninstall numpy first to avoid version conflicts
-run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
+if not os.path.exists(r"C:\Users\manto\\"):
+    run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
 
-for pkg in packages:
-    install(pkg)
+    for pkg in packages:
+        install(pkg)
 
 # %% [markdown]
 # ## 1. Descrizione del problema e analisi esplorativa
@@ -87,25 +87,41 @@ import os
 # %%
 #NON RIESEGUIRE
 # if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
-#     ! mkdir ~/.kaggle
-#     ! cp kaggle.json ~/.kaggle/
-#     ! chmod 600 ~/.kaggle/kaggle.json
-#     ! kaggle datasets list
-#     !kaggle datasets download antonkozyriev/game-recommendations-on-steam
-#     !mkdir games
-#     !unzip game-recommendations-on-steam.zip -d games_dataset
+     #! mkdir ~/.kaggle
+     #! cp kaggle.json ~/.kaggle/
+     #! chmod 600 ~/.kaggle/kaggle.json
+     #! kaggle datasets list 
+     #! kaggle datasets download antonkozyriev/game-recommendations-on-steam 
+     #! unzip game-recommendations-on-steam.zip -d games_dataset
 
 # %% [markdown]
 # ## Data cleaning
 # %%
-print(os.getcwd())
-os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
-print(os.getcwd())
+if os.path.exists(r"C:\Users\manto\\"):
+    print(os.getcwd())
+    os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
+    print(os.getcwd())
 # %%
 bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
-bigdata['steam_deck'].value_counts()
-bigdata.drop(columns=["steam_deck"], inplace=True);
-bigdata
+#bigdata['steam_deck'].value_counts()
+bigdata.drop(columns=["steam_deck"], inplace=True)
+def rank_stats_stream(value):
+    mapping = {
+        'overwhelmingly positive': 9-5,
+        'very positive': 8-5,
+        'mostly positive': 7-5,
+        'positive': 6-5,
+        'mixed': 5-5,
+        'negative': 4-5,
+        'mostly negative': 3-5,
+        'overwhelmingly negative': 1-5,
+        'very negative': 2-5
+    }
+    return mapping.get(str(value).lower(), np.nan)
+
+bigdata["rating"]= bigdata["rating"].map(rank_stats_stream)
+bigdata['rating'].unique()
+#rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
 
 # %% [markdown]
 # ## editing dataset dati aggiuntivi
@@ -116,6 +132,7 @@ bigdata
 # %%
 # editing dataset dati aggiuntivi
 df = fetch_openml(data_id=43689)
+#Genres tolti perché saranno già inclusi in tag
 secdata = pd.DataFrame({
     "SteamURL": df.data["SteamURL"],
     "Metacritic": df.data["Metacritic"],
@@ -139,7 +156,13 @@ tagsdata=tagsdata.drop(columns='description')
 tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
 tagsdata
 
+
 # %%
+rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0)
+
+# %%
+
+random.seed(42)
 
 def rank_stats(value):
     if str(value).lower() == 'true':
@@ -147,20 +170,34 @@ def rank_stats(value):
     else:
         return random.randint(1, 2)
 
-rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0,sep=';')
+def reduce3(value):
+    if value == 3:
+        return random.randint(3,5)
+    else:
+        return value
+
+rec_data.columns
+rec_data.drop(columns=['date','funny','review_id'], inplace=True)
+#rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
+#rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
+#rec_data['rank'] = rec_data['rank'].map(reduce3)
+#rec_data['rank'].value_counts()
+
+# %%
 rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
-rec_data
+rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
+rec_data['rank'] = rec_data['rank'].map(reduce3)
 
 
 # %%
 # merge dei dataset
 tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
 data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
-data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
+#data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
 data.drop(columns='Tags', inplace=True)
-data
 
 # %% [markdown]
+#Rilevazione di valori nulli
 #matrice.notna()
 #Nello specifico, le features disponibile (come si può osservare dalla rappresentazione del dataset) sono:
 
@@ -178,5 +215,18 @@ data
     # Presence or absence of cardiovascular disease | Target Variable | cardio | binary |
 
 #dataset['cardio'].value_counts().plot.pie(autopct='%1.1f%%')
-#Rilevazione di valori nulli
 
+# %%
+#grafico dei generi che hanno ricevuto piu' voti (torta e barre)
+#grafico giochi piu' votati(data.head().pie)blabla
+#media dei voti per genere
+
+# %%
+xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
+# %%
+# Ogni riga di 'tags' è una stringa di tag separati da virgole, quindi bisogna splittare, unire e trovare i valori unici
+all_tags = xGrafico['tags'].dropna().str.split(',').explode().str.strip()
+num_unique_tags = all_tags.nunique()
+print(num_unique_tags)
+
+# %%
