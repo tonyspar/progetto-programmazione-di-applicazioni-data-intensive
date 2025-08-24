@@ -83,6 +83,7 @@ import matplotlib.pyplot as plt
 #import surprise
 import jovian
 from sklearn.datasets import fetch_openml
+import os
 # %%
 #NON RIESEGUIRE
 # if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
@@ -96,9 +97,12 @@ from sklearn.datasets import fetch_openml
 
 # %% [markdown]
 # ## dataset principale
-
 # %%
-bigdata=pd.read_csv("games_dataset/games.csv", index_col=0)
+print(os.getcwd())
+os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
+print(os.getcwd())
+# %%
+bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
 bigdata['steam_deck'].value_counts()
 bigdata.drop(columns=["steam_deck"], inplace=True);
 bigdata
@@ -133,7 +137,7 @@ metadata.to_csv("data3.csv", encoding='utf-8', index=False)
 tagsdata = pd.read_csv("data3.csv", index_col=0)
 tagsdata=tagsdata.drop(columns='description')
 tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
-tagsdata.index
+tagsdata
 
 # %%
 # merge dei dataset
@@ -141,17 +145,17 @@ tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, righ
 data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
 data.drop(columns='Tags', inplace=True)
 data
+
 # %%
 
 def rank_stats(value):
-    if value == 'true':
+    if str(value).lower() == 'true':
         return random.randint(3, 5)
     else:
         return random.randint(1, 2)
 
-rec_data=pd.read_csv("games_dataset/recommendations.csv", index_col=0)
-rec_data.insert(0, 'Rank', rec_data.index)
-rec_data['Rank'] = rec_data['is_recommended'].map(rank_stats)
+rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0,sep=';')
+rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
 rec_data
 
 # %%
