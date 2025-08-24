@@ -1,16 +1,64 @@
 # %% [markdown]
 # # da commentare
 
+import sys
+import subprocess
+
 # %%
-%pip install --upgrade pip
-#%pip install surprise
-%pip uninstall numpy -y
-%pip install 'numpy<2.0,>=1.20'
-%pip install pandas
-%pip install scikit-learn
-!pip install numpy.typing
-!pip install -q kaggle
-!pip install jovian --upgrade --quiet
+def run_cmd(cmd):
+    try:
+        subprocess.check_call(cmd, shell=True)
+    except Exception as e:
+        print(f"Command failed: {cmd}\n{e}")
+
+def install(package):
+    # Try pip first
+    try:
+        run_cmd(f"{sys.executable} -m pip install --upgrade pip")
+        run_cmd(f"{sys.executable} -m pip install {package}")
+    except Exception:
+        # Fallback for environments like Colab
+        run_cmd(f"!pip install {package}")
+
+# List of required packages
+packages = [
+    "numpy<2.0,>=1.20",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "scikit-surprise",  # This is the correct package name for 'surprise'
+    "jovian --upgrade --quiet",
+    "kaggle",
+    "numpy.typing"
+]
+
+def is_conda():
+    try:
+        return hasattr(sys, 'base_prefix') and 'conda' in sys.version or 'Continuum' in sys.version
+    except Exception:
+        return False
+
+def install(package):
+    if is_conda():
+        # Try installing with conda first
+        try:
+            run_cmd(f"conda install -y {package.split()[0]}")
+            return
+        except Exception:
+            pass
+    # Fallback to pip
+    try:
+        run_cmd(f"{sys.executable} -m pip install --upgrade pip")
+        run_cmd(f"{sys.executable} -m pip install {package}")
+    except Exception:
+        # Fallback for environments like Colab
+        run_cmd(f"!pip install {package}")
+
+# Uninstall numpy first to avoid version conflicts
+run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
+
+for pkg in packages:
+    install(pkg)
 
 # %% [markdown]
 # ## 1. Descrizione del problema e analisi esplorativa
@@ -25,10 +73,7 @@
 # 
 # Importiamo le librerie usando i loro alias convenzionali e abilitando l'inserimento dei grafici direttamente nel notebook
 #
-# %%
-%pip install pandas
-%pip install matplotlib
-%pip install surprise
+
 
 # %%
 import numpy as np
