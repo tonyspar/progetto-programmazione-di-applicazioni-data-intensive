@@ -96,7 +96,7 @@ import os
 #     !unzip game-recommendations-on-steam.zip -d games_dataset
 
 # %% [markdown]
-# ## dataset principale
+# ## Data cleaning
 # %%
 print(os.getcwd())
 os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
@@ -140,13 +140,6 @@ tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
 tagsdata
 
 # %%
-# merge dei dataset
-tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
-data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
-data.drop(columns='Tags', inplace=True)
-data
-
-# %%
 
 def rank_stats(value):
     if str(value).lower() == 'true':
@@ -158,4 +151,32 @@ rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0,sep=';')
 rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
 rec_data
 
+
 # %%
+# merge dei dataset
+tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
+data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
+data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
+data.drop(columns='Tags', inplace=True)
+data
+
+# %% [markdown]
+#matrice.notna()
+#Nello specifico, le features disponibile (come si può osservare dalla rappresentazione del dataset) sono:
+
+    # Age | Objective Feature | age | int (days)
+    # Height | Objective Feature | height | int (cm) |
+    # Weight | Objective Feature | weight | float (kg) |
+    # Gender | Objective Feature | gender | categorical code |
+    # Systolic blood pressure | Examination Feature | ap_hi | int |
+    # Diastolic blood pressure | Examination Feature | ap_lo | int |
+    # Cholesterol | Examination Feature | cholesterol | 1: normal, 2: above normal, 3: well above normal |
+    # Glucose | Examination Feature | gluc | 1: normal, 2: above normal, 3: well above normal |
+    # Smoking | Subjective Feature | smoke | binary |
+    # Alcohol intake | Subjective Feature | alco | binary |
+    # Physical activity | Subjective Feature | active | binary |
+    # Presence or absence of cardiovascular disease | Target Variable | cardio | binary |
+
+#dataset['cardio'].value_counts().plot.pie(autopct='%1.1f%%')
+#Rilevazione di valori nulli
+
