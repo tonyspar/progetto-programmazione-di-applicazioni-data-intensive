@@ -55,7 +55,7 @@ def install(package):
         run_cmd(f"!pip install {package}")
 
 # Uninstall numpy first to avoid version conflicts
-#if not os.path.exists(r"C:\Users\manto\\"):
+if not os.path.exists(r"C:\Users\manto\\"):
     run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
 
     for pkg in packages:
@@ -103,6 +103,114 @@ if os.path.exists(r"C:\Users\manto\\"):
     print(os.getcwd())
     os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
     print(os.getcwd())
+
+# %%
+rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0)
+# %%
+import csv
+with open('games_dataset/recommendations.csv', 'r') as inp, open('recommendations_half.csv', 'w') as out:
+    writer = csv.writer(out)
+    for row in csv.reader(inp):
+        if row[2] != "0":
+            writer.writerow(row)
+# %% [markdown]
+
+if os.path.exists(r"C:\Users\manto\\"):
+
+    random.seed(42)
+    
+    def rank_stats(value):
+         if str(value).lower() == 'true':
+             return random.randint(3, 5)
+         else:
+             return random.randint(1, 2)
+    
+    def reduce3(value):
+         if value == 3:
+             return random.randint(3,5)
+         else:
+             return value
+    
+    rec_data.columns
+    rec_data.drop(columns=['date','funny','review_id'], inplace=True)
+    rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
+    rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
+    rec_data['rank'] = rec_data['rank'].map(reduce3)
+    rec_data['rank'].value_counts()
+
+
+# %%
+# merge dei dataset
+tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
+data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
+#data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
+data.drop(columns='Tags', inplace=True)
+# %%
+data.dropna(subset=['tags'], inplace=True)
+
+# %% [markdown]
+# %%
+#grafico dei generi che hanno ricevuto piu' voti (torta e barre)
+#grafico giochi piu' votati(data.head().pie)blabla
+#media dei voti per genere
+#numero di giochi che hanno un certo voto medio
+
+# %%
+xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
+# Ogni riga di 'tags' è una stringa di tag separati da virgole, quindi bisogna splittare, unire e trovare i valori unici
+rec_c = xGrafico.dropna(subset=['tags'])
+
+# %%
+pd.qcut(rec_c.groupby('user_id').size(), 10, duplicates='drop')#.value_counts().sort_index().plot.bar()
+
+# %%
+game_rew_bar=pd.qcut(rec_c.index.value_counts(), 10).value_counts().sort_index().plot.bar()
+plt.xlabel("Intervallo di recensioni per gioco")
+plt.ylabel("Numero di giochi")
+game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
+plt.show()
+# %%
+pd.qcut(xGrafico.index.value_counts(), 10).value_counts().sort_index().plot.pie()
+# %%
+#data=data.dropna(subset=['tags'])
+# Estrai tutti i generi (tag) da ogni gioco, rimuovi parentesi quadre e spazi, splitta per virgola, poi esplodi in una serie
+all_tags = data['tags'].dropna().explode()
+#Top 10 generi presenti nei videogiochi
+all_tags.value_counts().head(10).plot.bar()
+#num_unique_tags = all_tags.unique()
+#num_unique_tags[0]
+# %%
+#Top 10 generi meno presenti nei videogiochi
+all_tags.value_counts().tail(10).plot.bar()
+# %%
+rec_c.shape
+
+# %%
+from numpy.random import default_rng
+
+random.seed(42)
+
+arr_indices_top_drop = default_rng().choice(rec_c.index, size=int(rec_c.shape[0]/4), replace=False)
+rec_c.drop(index=arr_indices_top_drop)
+# %%
+#pd.get_dummies(rec_c['tags'].dropna().explode().unique())
+from sklearn.preprocessing import MultiLabelBinarizer
+
+mlb = MultiLabelBinarizer()
+
+tags=pd.DataFrame(
+    mlb.fit_transform(rec_c["tags"]),
+    columns=mlb.classes_,
+    index=data.index
+)
+
+tags=tags.astype(bool)
+
+rec_c.join(tags)
+
+# %%
+rec_c.index
+# %%
 # %%
 bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
 #bigdata['steam_deck'].value_counts()
@@ -156,76 +264,6 @@ metadata.to_csv("data3.csv", encoding='utf-8', index=False)
 tagsdata = pd.read_csv("data3.csv", index_col=0)
 tagsdata=tagsdata.drop(columns='description')
 tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
-tagsdata
+tagsdata['tags'] = tagsdata['tags'].dropna().str.replace(r"[ \[\]']", '', regex=True).str.split(',')
+tagsdata['tags'].explode().nunique()
 
-
-# %%
-rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0)
-
-# %% [markdown]
-
-if os.path.exists(r"C:\Users\manto\\"):
-
-    random.seed(42)
-    
-    def rank_stats(value):
-         if str(value).lower() == 'true':
-             return random.randint(3, 5)
-         else:
-             return random.randint(1, 2)
-    
-    def reduce3(value):
-         if value == 3:
-             return random.randint(3,5)
-         else:
-             return value
-    
-    rec_data.columns
-    rec_data.drop(columns=['date','funny','review_id'], inplace=True)
-    rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
-    rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
-    rec_data['rank'] = rec_data['rank'].map(reduce3)
-    rec_data['rank'].value_counts()
-
-
-# %%
-# merge dei dataset
-tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
-data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
-#data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
-data.drop(columns='Tags', inplace=True)
-
-# %% [markdown]
-#Rilevazione di valori nulli
-#matrice.notna()
-#Nello specifico, le features disponibile (come si può osservare dalla rappresentazione del dataset) sono:
-
-    # Age | Objective Feature | age | int (days)
-    # Height | Objective Feature | height | int (cm) |
-    # Weight | Objective Feature | weight | float (kg) |
-    # Gender | Objective Feature | gender | categorical code |
-    # Systolic blood pressure | Examination Feature | ap_hi | int |
-    # Diastolic blood pressure | Examination Feature | ap_lo | int |
-    # Cholesterol | Examination Feature | cholesterol | 1: normal, 2: above normal, 3: well above normal |
-    # Glucose | Examination Feature | gluc | 1: normal, 2: above normal, 3: well above normal |
-    # Smoking | Subjective Feature | smoke | binary |
-    # Alcohol intake | Subjective Feature | alco | binary |
-    # Physical activity | Subjective Feature | active | binary |
-    # Presence or absence of cardiovascular disease | Target Variable | cardio | binary |
-
-#dataset['cardio'].value_counts().plot.pie(autopct='%1.1f%%')
-
-# %%
-#grafico dei generi che hanno ricevuto piu' voti (torta e barre)
-#grafico giochi piu' votati(data.head().pie)blabla
-#media dei voti per genere
-
-# %%
-#xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
-# %%
-# Ogni riga di 'tags' è una stringa di tag separati da virgole, quindi bisogna splittare, unire e trovare i valori unici
-all_tags = xGrafico['tags'].dropna().str.split(',').explode().str.strip()
-num_unique_tags = all_tags.nunique()
-print(num_unique_tags)
-
-# %%
