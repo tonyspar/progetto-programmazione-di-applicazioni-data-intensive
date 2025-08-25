@@ -28,7 +28,8 @@ packages = [
     "matplotlib", # This is the correct package name for 'surprise'
     "jovian --upgrade --quiet",
     "kaggle",
-    "numpy.typing"
+    "numpy.typing",
+    "os"
 ]
 
 def is_conda():
@@ -54,7 +55,7 @@ def install(package):
         run_cmd(f"!pip install {package}")
 
 # Uninstall numpy first to avoid version conflicts
-if not os.path.exists(r"C:\Users\manto\\"):
+#if not os.path.exists(r"C:\Users\manto\\"):
     run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
 
     for pkg in packages:
@@ -79,6 +80,7 @@ if not os.path.exists(r"C:\Users\manto\\"):
 import numpy as np
 import pandas as pd
 import random
+import os
 import matplotlib.pyplot as plt
 #import surprise
 import jovian
@@ -92,15 +94,15 @@ import os
      #! chmod 600 ~/.kaggle/kaggle.json
      #! kaggle datasets list 
      #! kaggle datasets download antonkozyriev/game-recommendations-on-steam 
-     #! unzip game-recommendations-on-steam.zip -d games_dataset
+     #! unzip game-recommendations-on-steam.zip -d games_datasetco
 
 # %% [markdown]
 # ## Data cleaning
 # %%
-if os.path.exists(r"C:\Users\manto\\"):
-    print(os.getcwd())
-    os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
-    print(os.getcwd())
+# if os.path.exists(r"C:\Users\manto\\"):
+#     print(os.getcwd())
+#     os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
+#     print(os.getcwd())
 # %%
 bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
 #bigdata['steam_deck'].value_counts()
@@ -160,7 +162,7 @@ tagsdata
 # %%
 rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0)
 
-# %%
+# %% [markdown]
 
 random.seed(42)
 
@@ -183,7 +185,7 @@ rec_data.drop(columns=['date','funny','review_id'], inplace=True)
 #rec_data['rank'] = rec_data['rank'].map(reduce3)
 #rec_data['rank'].value_counts()
 
-# %%
+# %% [markdown]
 rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
 rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
 rec_data['rank'] = rec_data['rank'].map(reduce3)
