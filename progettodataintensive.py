@@ -1,58 +1,50 @@
-# %% [markdown]
-# # da commentare
-
-import sys
-import subprocess
-
 # %%
-def run_cmd(cmd):
-    try:
-        subprocess.check_call(cmd, shell=True)
-    except Exception as e:
-        print(f"Command failed: {cmd}\n{e}")
+if(False):
+    import sys
+    import subprocess
+    import platform
 
-def install(package):
-    # Try pip first
-    try:
-        run_cmd(f"{sys.executable} -m pip install --upgrade pip")
-        run_cmd(f"{sys.executable} -m pip install {package}")
-    except Exception:
-        # Fallback for environments like Colab
-        run_cmd(f"!pip install {package}")
-
-# List of required packages
-packages = [
-    "numpy<2.0,>=1.20",
-    "pandas",
-    "scikit-learn",
-    "matplotlib", # This is the correct package name for 'surprise'
-    "jovian --upgrade --quiet",
-    "kaggle",
-    "numpy.typing",
-    "os"
-]
-
-def is_conda():
-    try:
-        return hasattr(sys, 'base_prefix') and 'conda' in sys.version or 'Continuum' in sys.version
-    except Exception:
-        return False
-
-def install(package):
-    if is_conda():
-        # Try installing with conda first
+    def run_cmd(cmd):
         try:
-            run_cmd(f"conda install -y {package.split()[0]}")
-            return
-        except Exception:
-            pass
-    # Fallback to pip
-    try:
-        run_cmd(f"{sys.executable} -m pip install --upgrade pip")
-        run_cmd(f"{sys.executable} -m pip install {package}")
-    except Exception:
-        # Fallback for environments like Colab
-        run_cmd(f"!pip install {package}")
+            subprocess.check_call(cmd, shell=True)
+        except Exception as e:
+            print(f"Command failed: {cmd}\n{e}")
+
+    def is_windows():
+        return platform.system() == "Windows"
+
+    def install(package):
+        if is_windows():
+            # Su Windows, prova a usare conda
+            try:
+                run_cmd(f"conda install -y {package.split()[0]}")
+                return
+            except Exception:
+                print(f"Conda installation failed for {package}, trying pip...")
+        # Fallback a pip per tutti gli altri casi
+        try:
+            run_cmd(f"{sys.executable} -m pip install --upgrade pip")
+            run_cmd(f"{sys.executable} -m pip install {package}")
+        except Exception as e:
+            print(f"Pip installation failed for {package}: {e}")
+            run_cmd(f"!pip install {package}")
+
+    # Lista dei pacchetti richiesti
+    packages = [
+        "numpy",
+        "numpy<2.0,>=1.20",
+        "pandas",
+        "scikit-learn",
+        "matplotlib",
+        "jovian --upgrade --quiet",
+        "kaggle",
+        "numpy.typing"
+    ]
+
+    # Installa i pacchetti
+    for pkg in packages:
+        install(pkg)
+
 
 # Uninstall numpy first to avoid version conflicts
 if not os.path.exists(r"C:\Users\manto\\"):
@@ -87,66 +79,118 @@ import jovian
 from sklearn.datasets import fetch_openml
 import os
 # %%
-#NON RIESEGUIRE
 # if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
-     #! mkdir ~/.kaggle
-     #! cp kaggle.json ~/.kaggle/
-     #! chmod 600 ~/.kaggle/kaggle.json
-     #! kaggle datasets list 
-     #! kaggle datasets download antonkozyriev/game-recommendations-on-steam 
-     #! unzip game-recommendations-on-steam.zip -d games_datasetco
+if (False):
+    ! mkdir ~/.kaggle
+    ! cp kaggle.json ~/.kaggle/
+    ! chmod 600 ~/.kaggle/kaggle.json
+    ! kaggle datasets list 
+    ! kaggle datasets download antonkozyriev/game-recommendations-on-steam 
+    ! unzip game-recommendations-on-steam.zip -d games_dataset
 
 # %% [markdown]
 # ## Data cleaning
 # %%
 if os.path.exists(r"C:\Users\manto\\"):
-    print(os.getcwd())
+    # print(os.getcwd())
     os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
     print(os.getcwd())
 
 # %%
-rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0)
+# editing dataset dati aggiuntivi
+if(True):
+    df = fetch_openml(data_id=43689)
+    #Genres tolti perché saranno già inclusi in tag
+    secdata = pd.DataFrame({
+        "SteamURL": df.data["SteamURL"],
+        "Metacritic": df.data["Metacritic"],
+        "Platform": df.data["Platform"],
+        "Tags": df.data["Tags"],
+        "Languages": df.data["Languages"]
+    })
+    secdata=secdata.dropna(axis='rows', subset=["SteamURL","Tags"])
+    secdata['SteamURL']=secdata['SteamURL'].str[35:-16]
+    secdata.drop_duplicates(subset=['SteamURL'], inplace=True)
+    secdata['SteamURL']=secdata['SteamURL'].astype('int64')
+    secdata.index=secdata['SteamURL']
+    secdata.drop(columns='SteamURL', inplace=True)
+# %%
+# editing dataset tag
+metadata = pd.read_json("games_dataset/games_metadata.json", lines="True")
+metadata.to_csv("data3.csv", encoding='utf-8', index=False)
+tagsdata = pd.read_csv("data3.csv", index_col=0)
+tagsdata=tagsdata.drop(columns='description')
+tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
+tagsdata['tags'] = tagsdata['tags'].dropna().str.replace(r"[ \[\]']", '', regex=True).str.split(',')
+tagsdata['tags'].explode().nunique()
+
+
 # %%
 import csv
-with open('games_dataset/recommendations.csv', 'r') as inp, open('recommendations_half.csv', 'w') as out:
-    writer = csv.writer(out)
-    for row in csv.reader(inp):
-        if row[2] != "0":
-            writer.writerow(row)
-# %% [markdown]
 
-if os.path.exists(r"C:\Users\manto\\"):
-
+random.seed(42)
+if(not os.path.exists('recommendations_half.csv')):
+    with open('games_dataset/recommendations.csv', 'r') as inp, open('recommendations_half.csv', 'w') as out:
+        writer = csv.writer(out)
+        for i, row in enumerate(csv.reader(inp)):
+            if random.random() < 0.5 or i == 0:  # ~50% di probabilità di tenere la riga
+                writer.writerow(row)
+# %%
+rec_data = pd.read_csv("recommendations_half.csv", index_col=0)
+rec_data=rec_data.join(tagsdata, on='app_id', how='inner')
+if (True):
     random.seed(42)
-    
     def rank_stats(value):
          if str(value).lower() == 'true':
              return random.randint(3, 5)
          else:
              return random.randint(1, 2)
-    
     def reduce3(value):
          if value == 3:
              return random.randint(3,5)
          else:
              return value
-    
     rec_data.columns
     rec_data.drop(columns=['date','funny','review_id'], inplace=True)
     rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
     rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
     rec_data['rank'] = rec_data['rank'].map(reduce3)
-    rec_data['rank'].value_counts()
+    rec_data
+
 
 
 # %%
-# merge dei dataset
-tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
-data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
-#data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
-data.drop(columns='Tags', inplace=True)
+
 # %%
-data.dropna(subset=['tags'], inplace=True)
+if(True):
+    bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
+    #bigdata['steam_deck'].value_counts()
+    bigdata.drop(columns=["steam_deck"], inplace=True)
+    def rank_stats_stream(value):
+        mapping = {
+            'overwhelmingly positive': 9-5,
+            'very positive': 8-5,
+            'mostly positive': 7-5,
+            'positive': 6-5,
+            'mixed': 5-5,
+            'negative': 4-5,
+            'mostly negative': 3-5,
+            'overwhelmingly negative': 1-5,
+            'very negative': 2-5
+        }
+        return mapping.get(str(value).lower(), np.nan)
+
+    bigdata["rating"]= bigdata["rating"].map(rank_stats_stream)
+    bigdata['rating'].unique()
+    #rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
+
+    # merge dei dataset
+    tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
+    data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
+    #data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
+    data.drop(columns='Tags', inplace=True)
+    data.dropna(subset=['tags'], inplace=True)
+# %%
 
 # %% [markdown]
 # %%
@@ -156,21 +200,22 @@ data.dropna(subset=['tags'], inplace=True)
 #numero di giochi che hanno un certo voto medio
 
 # %%
-xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
 # Ogni riga di 'tags' è una stringa di tag separati da virgole, quindi bisogna splittare, unire e trovare i valori unici
-rec_c = xGrafico.dropna(subset=['tags'])
+if(False):
+    xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
+    rec_c = xGrafico.dropna(subset=['tags'])
 
-# %%
-pd.qcut(rec_c.groupby('user_id').size(), 10, duplicates='drop')#.value_counts().sort_index().plot.bar()
+# # %%
+# pd.qcut(rec_c.groupby('user_id').size(), 10, duplicates='drop')#.value_counts().sort_index().plot.bar()
 
-# %%
-game_rew_bar=pd.qcut(rec_c.index.value_counts(), 10).value_counts().sort_index().plot.bar()
-plt.xlabel("Intervallo di recensioni per gioco")
-plt.ylabel("Numero di giochi")
-game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
-plt.show()
-# %%
-pd.qcut(xGrafico.index.value_counts(), 10).value_counts().sort_index().plot.pie()
+# # %%
+# game_rew_bar=pd.qcut(rec_c.index.value_counts(), 10).value_counts().sort_index().plot.bar()
+# plt.xlabel("Intervallo di recensioni per gioco")
+# plt.ylabel("Numero di giochi")
+# game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
+# plt.show()
+# # %%
+# pd.qcut(xGrafico.index.value_counts(), 10).value_counts().sort_index().plot.pie()
 # %%
 #data=data.dropna(subset=['tags'])
 # Estrai tutti i generi (tag) da ogni gioco, rimuovi parentesi quadre e spazi, splitta per virgola, poi esplodi in una serie
@@ -183,87 +228,32 @@ all_tags.value_counts().head(10).plot.bar()
 #Top 10 generi meno presenti nei videogiochi
 all_tags.value_counts().tail(10).plot.bar()
 # %%
-rec_c.shape
+# Esplodi la colonna tags
+rec_tags = rec_data.dropna(subset=['tags']).explode('tags')
 
+tag_counts = rec_tags['tags'].value_counts()
+
+# Prendi i 10 tag più recensiti
+top_tags = tag_counts.head(10).index
+
+# Calcola la media rank solo per questi tag
+top_tags_mean = rec_tags[rec_tags['tags'].isin(top_tags)].groupby('tags')['rank'].mean()
+
+# Visualizza l'istogramma
 # %%
-from numpy.random import default_rng
-
-random.seed(42)
-
-arr_indices_top_drop = default_rng().choice(rec_c.index, size=int(rec_c.shape[0]/4), replace=False)
-rec_c.drop(index=arr_indices_top_drop)
+top_tags_mean.sort_values(ascending=False, inplace=True)
+top_tags_mean.plot.bar()
+plt.xlabel("Tag")
+plt.ylabel("Media rank")
+plt.title("Top 10 tags per media rank nelle recensioni")
+plt.show()
 # %%
-#pd.get_dummies(rec_c['tags'].dropna().explode().unique())
-from sklearn.preprocessing import MultiLabelBinarizer
-
-mlb = MultiLabelBinarizer()
-
-tags=pd.DataFrame(
-    mlb.fit_transform(rec_c["tags"]),
-    columns=mlb.classes_,
-    index=data.index
-)
-
-tags=tags.astype(bool)
-
-rec_c.join(tags)
-
+rec_data
 # %%
-rec_c.index
-# %%
-# %%
-bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
-#bigdata['steam_deck'].value_counts()
-bigdata.drop(columns=["steam_deck"], inplace=True)
-def rank_stats_stream(value):
-    mapping = {
-        'overwhelmingly positive': 9-5,
-        'very positive': 8-5,
-        'mostly positive': 7-5,
-        'positive': 6-5,
-        'mixed': 5-5,
-        'negative': 4-5,
-        'mostly negative': 3-5,
-        'overwhelmingly negative': 1-5,
-        'very negative': 2-5
-    }
-    return mapping.get(str(value).lower(), np.nan)
 
-bigdata["rating"]= bigdata["rating"].map(rank_stats_stream)
-bigdata['rating'].unique()
-#rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
 
 # %% [markdown]
 # ## editing dataset dati aggiuntivi
-
-# %% [markdown]
 # Alcune feature non sono rilevanti per il nostro problema, possiamo quindi rimuovere le colonne dal dataframe per risparmiare ulteriormente spazio.
 
-# %%
-# editing dataset dati aggiuntivi
-df = fetch_openml(data_id=43689)
-#Genres tolti perché saranno già inclusi in tag
-secdata = pd.DataFrame({
-    "SteamURL": df.data["SteamURL"],
-    "Metacritic": df.data["Metacritic"],
-    "Platform": df.data["Platform"],
-    "Tags": df.data["Tags"],
-    "Languages": df.data["Languages"]
-})
-secdata=secdata.dropna(axis='rows', subset=["SteamURL","Tags"])
-secdata['SteamURL']=secdata['SteamURL'].str[35:-16]
-secdata.drop_duplicates(subset=['SteamURL'], inplace=True)
-secdata['SteamURL']=secdata['SteamURL'].astype('int64')
-secdata.index=secdata['SteamURL']
-secdata.drop(columns='SteamURL', inplace=True)
-
-# %%
-# editing dataset tag
-metadata = pd.read_json("games_dataset/games_metadata.json", lines="True")
-metadata.to_csv("data3.csv", encoding='utf-8', index=False)
-tagsdata = pd.read_csv("data3.csv", index_col=0)
-tagsdata=tagsdata.drop(columns='description')
-tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
-tagsdata['tags'] = tagsdata['tags'].dropna().str.replace(r"[ \[\]']", '', regex=True).str.split(',')
-tagsdata['tags'].explode().nunique()
 
