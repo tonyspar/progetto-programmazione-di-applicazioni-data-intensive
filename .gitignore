@@ -209,3 +209,4 @@ __marimo__/
 game*
 game*/
 *.csv
+game*/*.csv
