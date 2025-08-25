@@ -41,13 +41,9 @@ if(False):
         "numpy.typing"
     ]
 
-    # Installa i pacchetti
-    for pkg in packages:
-        install(pkg)
-
+if not os.path.exists(r"C:\Users\manto\\"):
 
 # Uninstall numpy first to avoid version conflicts
-if not os.path.exists(r"C:\Users\manto\\"):
     run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
 
     for pkg in packages:
@@ -74,7 +70,7 @@ import pandas as pd
 import random
 import os
 import matplotlib.pyplot as plt
-#import surprise
+import surprise
 import jovian
 from sklearn.datasets import fetch_openml
 import os
@@ -155,11 +151,12 @@ if (True):
     rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
     rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
     rec_data['rank'] = rec_data['rank'].map(reduce3)
-    rec_data
+    rec_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:3000].index)]
 
 
 
 # %%
+rec_data.to_csv("games_dataset/tronc_rec.csv", encoding='utf-8')
 
 # %%
 if(True):
@@ -219,14 +216,14 @@ if(False):
 # %%
 #data=data.dropna(subset=['tags'])
 # Estrai tutti i generi (tag) da ogni gioco, rimuovi parentesi quadre e spazi, splitta per virgola, poi esplodi in una serie
-all_tags = data['tags'].dropna().explode()
+#all_tags = data['tags'].dropna().explode()
 #Top 10 generi presenti nei videogiochi
-all_tags.value_counts().head(10).plot.bar()
+#all_tags.value_counts().head(10).plot.bar()
 #num_unique_tags = all_tags.unique()
 #num_unique_tags[0]
 # %%
 #Top 10 generi meno presenti nei videogiochi
-all_tags.value_counts().tail(10).plot.bar()
+#all_tags.value_counts().tail(10).plot.bar()
 # %%
 # Esplodi la colonna tags
 rec_tags = rec_data.dropna(subset=['tags']).explode('tags')
@@ -248,10 +245,16 @@ plt.ylabel("Media rank")
 plt.title("Top 10 tags per media rank nelle recensioni")
 plt.show()
 # %%
-rec_data
+rec_data.drop(columns=['tags'], inplace=True)
 # %%
-
-
+tronc_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:2500].index)]
+print(tronc_data.index.value_counts().index.nunique())
+# %%
+game_rew_bar=pd.qcut(tronc_data.index.value_counts(), 10, duplicates='drop').value_counts().sort_index().plot.bar()
+plt.xlabel("Intervallo di recensioni per gioco")
+plt.ylabel("Numero di giochi")
+game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
+plt.show()
 # %% [markdown]
 # ## editing dataset dati aggiuntivi
 # Alcune feature non sono rilevanti per il nostro problema, possiamo quindi rimuovere le colonne dal dataframe per risparmiare ulteriormente spazio.
