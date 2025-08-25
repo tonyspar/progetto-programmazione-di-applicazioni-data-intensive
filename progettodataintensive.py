@@ -1,7 +1,6 @@
 # %% [markdown]
 # # da commentare
 
-# %%
 import sys
 import subprocess
 
@@ -83,8 +82,6 @@ import pandas as pd
 import random
 import os
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-#%matplotlib inline
 #import surprise
 import jovian
 from sklearn.datasets import fetch_openml
@@ -102,10 +99,10 @@ import os
 # %% [markdown]
 # ## Data cleaning
 # %%
-# if os.path.exists(r"C:\Users\manto\\"):
-#     print(os.getcwd())
-#     os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
-#     print(os.getcwd())
+if os.path.exists(r"C:\Users\manto\\"):
+    print(os.getcwd())
+    os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
+    print(os.getcwd())
 # %%
 bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
 #bigdata['steam_deck'].value_counts()
@@ -167,31 +164,28 @@ rec_data = pd.read_csv("games_dataset/recommendations.csv", index_col=0)
 
 # %% [markdown]
 
-# random.seed(42)
+if os.path.exists(r"C:\Users\manto\\"):
 
-# def rank_stats(value):
-#     if str(value).lower() == 'true':
-#         return random.randint(3, 5)
-#     else:
-#         return random.randint(1, 2)
-
-# def reduce3(value):
-#     if value == 3:
-#         return random.randint(3,5)
-#     else:
-#         return value
-
-# rec_data.columns
-# rec_data.drop(columns=['date','funny','review_id'], inplace=True)
-# #rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
-# #rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
-# #rec_data['rank'] = rec_data['rank'].map(reduce3)
-# #rec_data['rank'].value_counts()
-
-# # %% [markdown]
-# rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
-# rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
-# rec_data['rank'] = rec_data['rank'].map(reduce3)
+    random.seed(42)
+    
+    def rank_stats(value):
+         if str(value).lower() == 'true':
+             return random.randint(3, 5)
+         else:
+             return random.randint(1, 2)
+    
+    def reduce3(value):
+         if value == 3:
+             return random.randint(3,5)
+         else:
+             return value
+    
+    rec_data.columns
+    rec_data.drop(columns=['date','funny','review_id'], inplace=True)
+    rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
+    rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
+    rec_data['rank'] = rec_data['rank'].map(reduce3)
+    rec_data['rank'].value_counts()
 
 
 # %%
@@ -230,38 +224,8 @@ data.drop(columns='Tags', inplace=True)
 #xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
 # %%
 # Ogni riga di 'tags' è una stringa di tag separati da virgole, quindi bisogna splittare, unire e trovare i valori unici
-xGrafico=xGrafico.dropna(subset=['tags'])
-#num_unique_tags = all_tags.nunique()
-#print(num_unique_tags)
+all_tags = xGrafico['tags'].dropna().str.split(',').explode().str.strip()
+num_unique_tags = all_tags.nunique()
+print(num_unique_tags)
 
 # %%
-# Numero di giochi con numero di recensioni dentro un certo range
-xGrafico.index.value_counts()
-#pd.qcut(xGrafico.index.value_counts(), 10).value_counts().sort_index().plot.bar()
-#pd.qcut(xGrafico.index.value_counts(), 10).value_counts().sort_index().plot.pie()
-xGrafico.index.value_counts().plot.box(figsize=(4, 6))
-
-
-
-# free_color = "#2ca02c" # green
-# occupied_color = "#d32829" # red
-
-# class_colors = [free_color, occupied_color]
-# class_colors_map = {0:free_color, 1:occupied_color}
-
-# print(data["Occupancy"].value_counts())
-# _ = data["Occupancy"].value_counts().plot.pie(colors=class_colors)
-# %%
-def plot_bar(feature, n, title):
-    wine[feature].value_counts()[:n].plot.bar(figsize=(15, 4))
-    plt.axes().set_title(title)
-    plt.show()
-
-plot_bar("country", 20, "Paesi più frequenti")
-
-
-# %%
-rec_data_cut=xGrafico.drop(columns=["tags"])
-rec_data_cut
-# %%
-rec_data_cut.to_csv("games_dataset/rec_cut.csv")
