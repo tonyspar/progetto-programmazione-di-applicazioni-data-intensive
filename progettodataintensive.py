@@ -1,3 +1,54 @@
+# %%
+if(False):
+    import sys
+    import subprocess
+    import platform
+
+    def run_cmd(cmd):
+        try:
+            subprocess.check_call(cmd, shell=True)
+        except Exception as e:
+            print(f"Command failed: {cmd}\n{e}")
+
+    def is_windows():
+        return platform.system() == "Windows"
+
+    def install(package):
+        if is_windows():
+            # Su Windows, prova a usare conda
+            try:
+                run_cmd(f"conda install -y {package.split()[0]}")
+                return
+            except Exception:
+                print(f"Conda installation failed for {package}, trying pip...")
+        # Fallback a pip per tutti gli altri casi
+        try:
+            run_cmd(f"{sys.executable} -m pip install --upgrade pip")
+            run_cmd(f"{sys.executable} -m pip install {package}")
+        except Exception as e:
+            print(f"Pip installation failed for {package}: {e}")
+            run_cmd(f"!pip install {package}")
+
+    # Lista dei pacchetti richiesti
+    packages = [
+        "numpy",
+        "numpy<2.0,>=1.20",
+        "pandas",
+        "scikit-learn",
+        "matplotlib",
+        "jovian --upgrade --quiet",
+        "kaggle",
+        "numpy.typing"
+    ]
+
+if os.path.exists(r"C:\Users\manto\\"):
+
+# Uninstall numpy first to avoid version conflicts
+    run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
+
+    for pkg in packages:
+        install(pkg)
+
 # %% [markdown]
 # ## 1. Descrizione del problema e analisi esplorativa
 # ### Caricamento Librerie
