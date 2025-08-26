@@ -41,7 +41,7 @@ if(False):
         "numpy.typing"
     ]
 
-if not os.path.exists(r"C:\Users\manto\\"):
+if os.path.exists(r"C:\Users\manto\\"):
 
 # Uninstall numpy first to avoid version conflicts
     run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
