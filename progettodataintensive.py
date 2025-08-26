@@ -1,67 +1,6 @@
-# %%
-if(False):
-    import sys
-    import subprocess
-    import platform
-
-    def run_cmd(cmd):
-        try:
-            subprocess.check_call(cmd, shell=True)
-        except Exception as e:
-            print(f"Command failed: {cmd}\n{e}")
-
-    def is_windows():
-        return platform.system() == "Windows"
-
-    def install(package):
-        if is_windows():
-            # Su Windows, prova a usare conda
-            try:
-                run_cmd(f"conda install -y {package.split()[0]}")
-                return
-            except Exception:
-                print(f"Conda installation failed for {package}, trying pip...")
-        # Fallback a pip per tutti gli altri casi
-        try:
-            run_cmd(f"{sys.executable} -m pip install --upgrade pip")
-            run_cmd(f"{sys.executable} -m pip install {package}")
-        except Exception as e:
-            print(f"Pip installation failed for {package}: {e}")
-            run_cmd(f"!pip install {package}")
-
-    # Lista dei pacchetti richiesti
-    packages = [
-        "numpy",
-        "numpy<2.0,>=1.20",
-        "pandas",
-        "scikit-learn",
-        "matplotlib",
-        "jovian --upgrade --quiet",
-        "kaggle",
-        "numpy.typing"
-    ]
-
-if not os.path.exists(r"C:\Users\manto\\"):
-
-# Uninstall numpy first to avoid version conflicts
-    run_cmd(f"{sys.executable} -m pip uninstall numpy -y")
-
-    for pkg in packages:
-        install(pkg)
-
 # %% [markdown]
 # ## 1. Descrizione del problema e analisi esplorativa
 # ### Caricamento Librerie
-# Per prima cosa carichiamo le librerie per effettuare operazioni sui dati
-# 
-
-# %% [markdown]
-# NumPy per creare e operare su array a N dimensioni
-#     pandas per caricare e manipolare dati tabulari
-#     matplotlib per creare grafici
-# 
-# Importiamo le librerie usando i loro alias convenzionali e abilitando l'inserimento dei grafici direttamente nel notebook
-#
 
 
 # %%
@@ -70,19 +9,20 @@ import pandas as pd
 import random
 import os
 import matplotlib.pyplot as plt
-import surprise
 import jovian
 from sklearn.datasets import fetch_openml
 import os
+import surprise
 # %%
-# if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
-if (False):
+#if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
+""" if (False):
     ! mkdir ~/.kaggle
     ! cp kaggle.json ~/.kaggle/
     ! chmod 600 ~/.kaggle/kaggle.json
     ! kaggle datasets list 
     ! kaggle datasets download antonkozyriev/game-recommendations-on-steam 
     ! unzip game-recommendations-on-steam.zip -d games_dataset
+ """# %%
 
 # %% [markdown]
 # ## Data cleaning
@@ -135,28 +75,24 @@ if(not os.path.exists('recommendations_half.csv')):
 rec_data = pd.read_csv("recommendations_half.csv", index_col=0)
 rec_data=rec_data.join(tagsdata, on='app_id', how='inner')
 if (True):
+    #ESTRAZIONE CASUALE IN BASE A VOTO METACRITIC
     random.seed(42)
     def rank_stats(value):
          if str(value).lower() == 'true':
-             return random.randint(3, 5)
+            return np.random.choice([4, 5], p=[0.3, 0.7])
          else:
-             return random.randint(1, 2)
-    def reduce3(value):
-         if value == 3:
-             return random.randint(3,5)
-         else:
-             return value
+            return np.random.choice([1, 2], p=[0.7, 0.3])
     rec_data.columns
     rec_data.drop(columns=['date','funny','review_id'], inplace=True)
     rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
     rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
-    rec_data['rank'] = rec_data['rank'].map(reduce3)
     rec_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:3000].index)]
 
 
 
 # %%
-rec_data.to_csv("games_dataset/tronc_rec.csv", encoding='utf-8')
+#CSV GIÀ CREATO
+#rec_data.to_csv("games_dataset/tronc_rec.csv", encoding='utf-8')
 
 # %%
 if(True):
@@ -202,28 +138,61 @@ if(False):
     xGrafico=rec_data.join(tagsdata, on='app_id', how='left')
     rec_c = xGrafico.dropna(subset=['tags'])
 
-# # %%
-# pd.qcut(rec_c.groupby('user_id').size(), 10, duplicates='drop')#.value_counts().sort_index().plot.bar()
-
-# # %%
-# game_rew_bar=pd.qcut(rec_c.index.value_counts(), 10).value_counts().sort_index().plot.bar()
-# plt.xlabel("Intervallo di recensioni per gioco")
-# plt.ylabel("Numero di giochi")
-# game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
-# plt.show()
-# # %%
-# pd.qcut(xGrafico.index.value_counts(), 10).value_counts().sort_index().plot.pie()
 # %%
-#data=data.dropna(subset=['tags'])
+rec_data['user_id'].value_counts()
+
+# %%
+user_rew_bar=pd.qcut(rec_data.groupby('user_id').size(), 10, duplicates='drop').value_counts().sort_index().plot.bar()
+plt.xlabel("Intervallo di recensioni per utente")
+plt.ylabel("Numero di utenti")
+user_rew_bar.set_title("Distribuzione degli utenti per numero di recensioni eseguite")
+plt.show()
+
+# %%
+game_rew_bar=pd.qcut(rec_data.index.value_counts(), 10, duplicates='drop').value_counts().sort_index().plot.bar()
+plt.xlabel("Intervallo di recensioni per gioco")
+plt.ylabel("Numero di giochi")
+game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
+plt.show()
+# %%
+(rec_data['user_id'].value_counts()>1000).sum()
+
+# %%
+# Filtra solo gli utenti con più di 212 recensioni
+filtered_users = rec_data['user_id'].value_counts()
+active_users = filtered_users[filtered_users > 212].index
+filtered_rec_data = rec_data[rec_data['user_id'].isin(active_users)]
+
+# Conta le recensioni per utente tra quelli filtrati
+review_counts = filtered_rec_data['user_id'].value_counts()
+
+# Crea l'istogramma con pd.qcut
+review_bins = pd.qcut(review_counts, 10, duplicates='drop')
+review_bins.value_counts().sort_index().plot.bar()
+plt.xlabel("Intervallo di recensioni per utente (>212)")
+plt.ylabel("Numero di utenti")
+plt.title("Distribuzione utenti con >212 recensioni")
+plt.show()
+
+# %%
+games_pie=pd.qcut(rec_data.index.value_counts(), 10, duplicates='drop').value_counts().sort_index(ascending=False).plot.pie(autopct='%1.1f%%', startangle=90)
+games_pie.set_title("Distribuzione dei giochi per numero di recensioni")
+games_pie.set_ylabel("")
+# %%
+data=data.dropna(subset=['tags'])
 # Estrai tutti i generi (tag) da ogni gioco, rimuovi parentesi quadre e spazi, splitta per virgola, poi esplodi in una serie
-#all_tags = data['tags'].dropna().explode()
+all_tags = data['tags'].dropna().explode()
 #Top 10 generi presenti nei videogiochi
-#all_tags.value_counts().head(10).plot.bar()
-#num_unique_tags = all_tags.unique()
-#num_unique_tags[0]
+genres_bar=all_tags.value_counts().head(10).plot.bar()
+plt.xlabel("Generi più popolari")
+plt.ylabel("Numero di giochi")
+genres_bar.set_title("Numero di giochi per genere")
 # %%
 #Top 10 generi meno presenti nei videogiochi
 #all_tags.value_counts().tail(10).plot.bar()
+# %%
+
+rec_data
 # %%
 # Esplodi la colonna tags
 rec_tags = rec_data.dropna(subset=['tags']).explode('tags')
@@ -231,32 +200,78 @@ rec_tags = rec_data.dropna(subset=['tags']).explode('tags')
 tag_counts = rec_tags['tags'].value_counts()
 
 # Prendi i 10 tag più recensiti
-top_tags = tag_counts.head(10).index
-
-# Calcola la media rank solo per questi tag
-top_tags_mean = rec_tags[rec_tags['tags'].isin(top_tags)].groupby('tags')['rank'].mean()
+top_tags = tag_counts.head(10).plot.bar()
 
 # Visualizza l'istogramma
-# %%
-top_tags_mean.sort_values(ascending=False, inplace=True)
-top_tags_mean.plot.bar()
+#top_tags_mean.sort_values(ascending=False, inplace=True)
 plt.xlabel("Tag")
-plt.ylabel("Media rank")
+plt.ylabel("Numero recensioni")
 plt.title("Top 10 tags per media rank nelle recensioni")
 plt.show()
 # %%
-rec_data.drop(columns=['tags'], inplace=True)
+datasurprise=rec_data.drop(columns=["helpful", "hours", "tags"])
+
 # %%
-tronc_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:2500].index)]
-print(tronc_data.index.value_counts().index.nunique())
-# %%
-game_rew_bar=pd.qcut(tronc_data.index.value_counts(), 10, duplicates='drop').value_counts().sort_index().plot.bar()
-plt.xlabel("Intervallo di recensioni per gioco")
-plt.ylabel("Numero di giochi")
-game_rew_bar.set_title("Distribuzione dei giochi per numero di recensioni")
-plt.show()
+datasurprise=datasurprise.reset_index()
 # %% [markdown]
 # ## editing dataset dati aggiuntivi
 # Alcune feature non sono rilevanti per il nostro problema, possiamo quindi rimuovere le colonne dal dataframe per risparmiare ulteriormente spazio.
+# %%
+#PER RECOMMENDATION SENZA MODELLO
+#only_ratings = rec_data.pivot_table(values="rank", index="user_id", columns="app_id")
+#only_ratings
+(rec_data['rank'].value_counts().loc[1]+rec_data['rank'].value_counts().loc[2])/rec_data.shape[0]
+# %%
+from surprise import Reader, Dataset, model_selection, SVD, SVDpp, NMF, KNNBasic, KNNWithMeans, accuracy, NormalPredictor
+from sklearn.metrics.pairwise import cosine_similarity
 
+df_reader = Reader(rating_scale=(1,5))
+datasurprise = Dataset.load_from_df(datasurprise[['user_id', 'app_id', 'rank']], df_reader) 
+# %%
+datasurprise
+# %%
+# carico il dataset
+# definisco algoritmo da usare e eventuali parametri
+#KNNBasic, non tocco tipo di similarità
+algo = KNNBasic()
 
+model_selection.cross_validate(algo, datasurprise, verbose=True)
+# %%
+algo = NormalPredictor()
+
+# eseguo la cross validation a 5 fold
+model_selection.cross_validate(algo, datasurprise, verbose=True)
+
+# %%
+algo = KNNWithMeans(k=300)
+
+# eseguo la cross validation a 5 fold
+model_selection.cross_validate(algo, datasurprise, verbose=True)
+# %%
+algo = KNNBasic(sim_options={"name": "cosine", "user_based": False})
+
+#model_selection.cross_validate(algo, datasurprise, verbose=True)
+
+# %% [markdown]
+# Surprise - - Svd, SVD ++(top), NMF
+# Bag of words con tags - ALS - CBF(sklearn)
+
+# SVD
+model_svd = SVD()
+model_svd.fit(trainset)
+preds_svd = model_svd.test(testset)
+accuracy.rmse(preds_svd)
+
+# SVD++
+model_svdpp = SVDpp()
+model_svdpp.fit(trainset)
+preds_svdpp = model_svdpp.test(testset)
+accuracy.rmse(preds_svdpp)
+
+# NMF
+model_nmf = NMF()
+model_nmf.fit(trainset)
+preds_nmf = model_nmf.test(testset)
+accuracy.rmse(preds_nmf)
+
+# %%
