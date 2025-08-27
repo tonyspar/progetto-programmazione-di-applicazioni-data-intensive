@@ -65,6 +65,7 @@ from sklearn.datasets import fetch_openml
 import os
 import surprise
 import lightfm
+
 # %%
 #if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
 """ if (False):
@@ -152,7 +153,7 @@ if (True):
 #rec_data.to_csv("games_dataset/tronc_rec.csv", encoding='utf-8')
 
 # %%
-if(True):
+if(False):
     bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
     #bigdata['steam_deck'].value_counts()
     bigdata.drop(columns=["steam_deck"], inplace=True)
@@ -360,81 +361,242 @@ model_nmf.fit(trainset)
 preds_nmf = model_nmf.test(testset)
 accuracy.rmse(preds_nmf)
 
-# %%
-from lightfm.datasets import fetch_movielens
-movielens = fetch_movielens()
-for key, value in movielens.items():
-    print(key, type(value), value.shape)
+
 # %%
 light_data = pd.read_csv("recommendations_half.csv", index_col=0)
 light_data.drop(columns=['date','funny','review_id', "helpful", "hours"], inplace=True)
 light_data.reset_index(inplace=True)
 # %%
 light_data=(light_data.loc[light_data['app_id'].isin(secdata.index)])
+light_data['app_id'].nunique()
 # %%
-(light_data['user_id'].value_counts()>2).sum()
+# Elimino i dati con recensioni negative perché uso una recommendation implicita
+light_data=light_data.loc[light_data['is_recommended']==True]
 # %%
-N = 4200  # Numero totale di utenti da selezionare
+N = 12500  # Numero totale di utenti da selezionare
 #FASCE A MANO
+user_counts = light_data.groupby("user_id").size().reset_index(name="n_reviews")
 
+# Definisci fasce manuali
+bins = [0, 2, 5, 20, float("inf")]
+# 6.5m, 1m, 400k, 40k
+labels = ["1-2", "3-5", "6-20", "20+"]
+user_counts["fascia"] = pd.cut(user_counts["n_reviews"], bins=bins, labels=labels)
+user_counts["fascia"].value_counts()
+# Quanti utenti vogliamo in totale 
 
-# Filtra il dataset originale per mantenere solo le recensioni degli utenti selezionati
-light_data_reduced = light_data[light_data['user_id'].isin(sampled_users['user_id'])]
+# Minimo per fascia (puoi aggiustare tu questi valori)
+min_per_fascia = {
+     "1-2": 3000,
+    "3-5": 3000,
+    "6-20": 3000,
+    "20+": 500   # i super attivi sono pochi, bastano meno
+}
 
-print(light_data_reduced['user_id'].nunique())  # Dovrebbe stampare 4200
+# --- 1) campiona il minimo garantito ---
+selected_users = []
+for fascia, group in user_counts.groupby("fascia"):
+    n_min = min_per_fascia.get(fascia, 0)
+    n_take = min(len(group), n_min)
+    sampled = group.sample(n=n_take, random_state=42)
+    selected_users.append(sampled)
+
+selected_users = pd.concat(selected_users)
+
+# --- 2) se non raggiungi N, riempi proporzionalmente ---
+remaining_slots = N - len(selected_users)
+if remaining_slots > 0:
+    # prendi il resto proporzionalmente dalle fasce, esclusi quelli già scelti
+    remaining_pool = user_counts[~user_counts["user_id"].isin(selected_users["user_id"])]
+    extra = (
+        remaining_pool.groupby("fascia")
+        .apply(lambda g: g.sample(
+            n=min(len(g), int(remaining_slots * len(g) / len(remaining_pool))),
+            random_state=42
+        ))
+        .reset_index(drop=True)
+    )
+    selected_users = pd.concat([selected_users, extra])
+
+# --- 3) Filtra il dataset originale ---
+light_data_red = light_data[light_data["user_id"].isin(selected_users["user_id"])]
+
+print("Utenti selezionati:", light_data_red["user_id"].nunique())
+print("Recensioni rimaste:", len(light_data_red))
+# %%
+light_data_red['app_id'].nunique()
+
+# %%
+lightdata=light_data_red
+lightdata
 # %%
 
 from lightfm import LightFM
 from lightfm.data import Dataset
 from lightfm.evaluation import precision_at_k, auc_score
-from lightfm.cross_validation import random_train_test_split
+from lightfm.cross_validation import random_train_test_split    
 
-# --- 1) Usa i nomi reali delle tue colonne ---
-# Se non hai un vero rating, aggiungi una colonna "rating" con 1.0
-if 'rating' not in datasurprise.columns:
-    datasurprise['rating'] = 1.0  # feedback implicito
+# ----------------------------------------------------
+# 1) PREPARAZIONE DEI DATI DI PARTENZA
+# ----------------------------------------------------
+# lightdata è il DataFrame su cui lavoriamo.
+# Deve contenere almeno:
+#   - una colonna con l'ID utente (es. 'user_id')
+#   - una colonna con l'ID item/prodotto (es. 'item_id')
+#   - opzionalmente un 'rating' o 'peso' dell'interazione
+#
+# Se il dataset rappresenta feedback impliciti
+# (es. click, acquisti, visualizzazioni)
+# e NON contiene una colonna 'rating', ne creiamo una fittizia
+# impostando il punteggio a 1.0 per ogni riga.
+# Questo indica che "utente X ha interagito con item Y"
+# senza indicare un grado di preferenza.
 
-# Converte a liste di tuple (utente, item, peso)
-interactions_data = list(zip(
-    datasurprise['user_id'].astype(str),
-    datasurprise['item_id'].astype(str),
-    datasurprise['rating'].astype(float)
-))
+# lightdata = il tuo DataFrame in formato wide come quello mostrato
+# Indice = user_id, colonne = app_id, valori booleani o NaN
 
-users = datasurprise['user_id'].astype(str).unique()
-items = datasurprise['item_id'].astype(str).unique()
+# 1. Sostituire i NaN con 0 e i booleani con 1
+lightdata['is_recommended'] = lightdata['is_recommended'].astype(int)
+# Se hai già True/False, puoi fare: binary_df = lightdata.astype(int)
+lightdata=lightdata.rename(columns={"app_id" : "item_id", "is_recommended" : "weight"})
+print(light_data)
+lightdata = lightdata[['user_id', 'item_id', 'weight']]
+lightdata
+# %%
+# Assicurati di avere user_id, item_id e rating
 
-# --- 2) Dataset + interazioni ---
+# Conversione tipi (buona pratica)
+lightdata['user_id'] = lightdata['user_id'].astype(str)
+lightdata['item_id'] = lightdata['item_id'].astype(str)
+lightdata['weight'] = lightdata['weight'].astype(float)
+
+
+
+# Ricaviamo anche l'elenco di utenti e item univoci.
+# Saranno utili per "istruire" il Dataset sul vocabolario completo.
+users = lightdata['user_id'].unique()
+items = lightdata['item_id'].unique()
+#  %%
+
+# %%
+# ----------------------------------------------------
+# 2) CREAZIONE DEL DATASET E MATRICE DI INTERAZIONI
+# ----------------------------------------------------
+# Istanzio un oggetto Dataset che si occuperà di mappare
+# i miei ID testuali (user/item) a indici interi interni.
 dataset = Dataset()
 dataset.fit(users, items)
 
-interactions, _ = dataset.build_interactions(interactions_data)
+# Costruisco la matrice delle interazioni (sparsa CSR)
+# a partire dalle tuple utente-item-rating.
+interactions, weights = dataset.build_interactions(lightdata.itertuples(index=False, name=None))
 
-train, test = random_train_test_split(interactions, test_percentage=0.2, random_state=42)
+# Suddivido in train e test in modo casuale,
+# mantenendo la distribuzione di interazioni (sparsità).
+train, test = random_train_test_split(
+    interactions, test_percentage=0.2, random_state=42
+)
+# %%
+# RICERCA IPERPARAMETRI PER IL MODELLO
+param_grid = {
+    "no_components": [10, 20, 50, 100],
+    "learning_schedule": ["adagrad", "adadelta"],
+    "learning_rate": [0.01, 0.05, 0.1],
+    "epochs": [5, 10, 20]
+    #"item_alpha": [1e-6, 1e-8]
+}
+results = []
 
-# --- 3) Modello LightFM ---
-model = LightFM(loss="warp", random_state=42)
-model.fit(train, epochs=20, num_threads=4)
+for n in param_grid["no_components"]:
+    for sched in param_grid["learning_schedule"]:
+        for lr in param_grid["learning_rate"]:
+            for ep in param_grid["epochs"]:
+                
+                model = LightFM(
+                    no_components=n,
+                    learning_schedule=sched,
+                    learning_rate=lr,
+                    loss="warp",   # tieni una loss fissa
+                    random_state=42
+                )
+                
+                model.fit(train, epochs=ep, num_threads=4, verbose=False)
+                
+                # valutazione
+                precision = precision_at_k(model, test, k=10).mean()
+                auc = auc_score(model, test).mean()
+                
+                results.append({
+                    "no_components": n,
+                    "schedule": sched,
+                    "lr": lr,
+                    "epochs": ep,
+                    "precision": precision,
+                    "auc": auc
+                })
+                
+                print(f"n={n}, sched={sched}, lr={lr}, ep={ep} -> prec@10={precision:.4f}, auc={auc:.4f}")
+# %%
+# ordina per la metrica che preferisci
+results_sorted = sorted(results, key=lambda x: x["precision"], reverse=True)
+results_sorted_auc = sorted(results, key=lambda x: x["auc"], reverse=True)
 
-# --- 4) Valutazione ---
-prec = precision_at_k(model, test, train_interactions=train, k=5, num_threads=4).mean()
-auc = auc_score(model, test, train_interactions=train, num_threads=4).mean()
+#print("Miglior combinazione trovata:")
+print("Best precision:\n")
+print(results_sorted)
+print("Best AUC:\n")
+print(results_sorted_auc)
+# %%
+# ----------------------------------------------------
+# 3) CREAZIONE E ADDESTRAMENTO DEL MODELLO
+# ----------------------------------------------------
+# loss='warp' = Weighted Approximate-Rank Pairwise:
+# adatto a ottimizzare il ranking top‑N con feedback implicito.
+# cambia n_components (maybe)
+#provare con learning_schedule adadelta
+#cambiare learning rate
+#rho e epsilon???
+model = LightFM(loss="warp")
+#cambia numero di epoche
+model.fit(train, epochs=20)
+# %%
+# ----------------------------------------------------
+# 4) VALUTAZIONE DEL MODELLO
+# ----------------------------------------------------
+# Precision@K: quanta parte dei primi K suggerimenti è rilevante.
+prec = precision_at_k(model, test, num_threads=4).mean()
+
+# AUC (Area Under Curve): probabilità che un item rilevante
+# abbia punteggio maggiore di uno irrilevante.
+auc = auc_score(model, test, num_threads=4).mean()
+
 print(f"Precision@5: {prec:.3f} | AUC: {auc:.3f}")
-
-# --- 5) Raccomandazioni ---
+# %%
+# ----------------------------------------------------
+# 5) FUNZIONE PER RACCOMANDARE TOP-K ITEM
+# ----------------------------------------------------
 def recommend_topk(model, dataset, interactions_csr, user_id, k=5):
-    # Mappature interne
+    # Mappature interne da stringhe a indici interi
     user_id_map, _, item_id_map, _ = dataset.mapping()
     u_internal = user_id_map[str(user_id)]
     item_labels = {v: k for k, v in item_id_map.items()}
 
+    # Predico uno score per OGNI item rispetto all'utente specificato
     scores = model.predict(u_internal, np.arange(interactions_csr.shape[1]))
 
+    # Escludo gli item che l'utente ha già visto/interagito
     seen = interactions_csr.tocsr()[u_internal].indices
-    scores[seen] = -np.inf
+    scores[seen] = -np.inf  # azzero la possibilità di raccomandarli
 
+    # Ordino gli item per punteggio decrescente e prendo i primi K
     top_items = np.argsort(-scores)[:k]
     return [item_labels[i] for i in top_items]
 
+# ----------------------------------------------------
+# 6) ESEMPIO: RACCOMANDAZIONI PER 3 UTENTI CASUALI
+# ----------------------------------------------------
 for u in np.random.choice(users, 3, replace=False):
-    print(f"{u} -> {recommend_topk(model, dataset, train, u, k=5)}")
+    raccomandazioni = recommend_topk(model, dataset, train, u, k=5)
+    print(f"{u} -> {raccomandazioni}")
+
+# %%
