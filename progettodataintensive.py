@@ -495,8 +495,6 @@ print(lightdata_m['app_id'].nunique())
 features_matrix=(features_matrix.loc[features_matrix.index.isin(lightdata_m['app_id'].unique())])
 print(features_matrix.index.nunique())
 # %%
-lightdata
-# %%
 
 from lightfm import LightFM
 from lightfm.data import Dataset
@@ -623,9 +621,10 @@ for n in param_grid["no_components"]:
 #2° RICERCA IPERPARAMETRI
 
 param_grid = {
-    "no_components": [10, 20, 50, 100],
+    "no_components": [10, 20, 50],#100
     "learning_rate": [0.01, 0.05, 0.1],
-    "epochs": [20, 30, 50]
+    "epochs": [20, 30, 50],#100
+    "item_alpha": [1e-5, 1e-4, 1e-3]
 }
 
 results = []
@@ -633,30 +632,32 @@ results = []
 for n in param_grid["no_components"]:
     for lr in param_grid["learning_rate"]:
         for ep in param_grid["epochs"]:
-            
-            model = LightFM(
-                no_components=n,
-                learning_rate=lr,
-                learning_schedule='adadelta',
-                loss="warp",      # tieni la stessa loss
-                random_state=42
-            )
-            
-            model.fit(train, epochs=ep, num_threads=4, verbose=False)
-            
-            # valutazione
-            precision = precision_at_k(model, test, k=10).mean()
-            auc = auc_score(model, test).mean()
-            
-            results.append({
-                "no_components": n,
-                "lr": lr,
-                "epochs": ep,
-                "precision": precision,
-                "auc": auc
-            })
-            
-            print(f"n={n}, lr={lr}, ep={ep} -> prec@10={precision:.4f}, auc={auc:.4f}")
+            for l2 in param_grid['item_alpha']:
+
+                model = LightFM(
+                    no_components=n,
+                    learning_rate=lr,
+                    loss="warp",      # tieni la stessa loss
+                    random_state=42,
+                    item_alpha=l2
+                )
+
+                model.fit(train, epochs=ep, num_threads=8, verbose=False, item_features=item_features)
+
+                # valutazione
+                precision = precision_at_k(model, test, k=10, item_features=item_features, num_threads=8).mean()
+                auc = auc_score(model, test, item_features=item_features, num_threads=8).mean()
+
+                results.append({
+                    "no_components": n,
+                    "lr": lr,
+                    "epochs": ep,
+                    "precision": precision,
+                    "auc": auc,
+                    "item_alpha": l2
+                })
+
+                print(f"n={n}, lr={lr}, ep={ep} ,l2={l2} -> prec@10={precision:.4f}, auc={auc:.4f}")
                 
 
 
