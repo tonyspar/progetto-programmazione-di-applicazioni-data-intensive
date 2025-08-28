@@ -63,28 +63,34 @@ import matplotlib.pyplot as plt
 import jovian
 from sklearn.datasets import fetch_openml
 import os
+from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 import surprise
 import lightfm
+from datetime import datetime
 
 # %%
 #if not os.path.exists("kaggle.json") and not os.path.exists("~/.kaggle/kaggle.json"):
-""" if (False):
+"""  if (True):
     ! mkdir ~/.kaggle
     ! cp kaggle.json ~/.kaggle/
     ! chmod 600 ~/.kaggle/kaggle.json
     ! kaggle datasets list 
     ! kaggle datasets download antonkozyriev/game-recommendations-on-steam 
-    ! unzip game-recommendations-on-steam.zip -d games_dataset
- """# %%
-
+    ! unzip game-recommendations-on-steam.zip -d games_dataset """
+ # %%
+# %
 # %% [markdown]
 # ## Data cleaning
 # %%
-if os.path.exists(r"C:\Users\manto\\"):
+#if os.path.exists(r"C:\Users\manto\\"):
     # print(os.getcwd())
-    os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
+    #os.chdir(r"C:\Users\manto\Documents\Università\3°anno\Data_intensive\progetto-programmazione-di-applicazioni-data-intensive")
+if os.path.exists("/home/ElManto03"):
+    os.chdir("/home/ElManto03/Documenti/progetto-programmazione-di-applicazioni-data-intensive")
     print(os.getcwd())
-
+if os.path.exists("/home/peppe"):
+    os.chdir("/home/peppe/Documenti/progetto-programmazione-di-applicazioni-data-intensive")
+    print(os.getcwd())
 # %%
 # editing dataset dati aggiuntivi
 if(True):
@@ -102,10 +108,22 @@ if(True):
     secdata.drop_duplicates(subset=['SteamURL'], inplace=True)
     secdata['SteamURL']=secdata['SteamURL'].astype('int64')
     secdata.index=secdata['SteamURL']
-    secdata.drop(columns=['SteamURL','Tags'], inplace=True)
-    secdata
+    secdata.drop(columns=['SteamURL','Tags', 'Platform', 'Metacritic'], inplace=True)
+
 # %%
 secdata
+secdata['Languages'] = secdata['Languages'].dropna().str.replace(r"[ \[\]']", '', regex=True).str.split(',')
+secdata['Languages'].explode().nunique()
+# %%
+mlb = MultiLabelBinarizer()
+
+multi_hot = mlb.fit_transform(secdata["Languages"])
+secdata = secdata.join(pd.DataFrame(multi_hot, columns=mlb.classes_, index=secdata.index))
+secdata.drop(columns=['Languages'], inplace=True)
+secdata
+# %%
+secdata
+
 # %%
 # editing dataset tag
 metadata = pd.read_json("games_dataset/games_metadata.json", lines="True")
@@ -115,8 +133,12 @@ tagsdata=tagsdata.drop(columns='description')
 tagsdata.drop(tagsdata[tagsdata['tags'].str.len()==2].index, inplace=True)
 tagsdata['tags'] = tagsdata['tags'].dropna().str.replace(r"[ \[\]']", '', regex=True).str.split(',')
 tagsdata['tags'].explode().nunique()
-
-
+tagsdata=tagsdata.loc[tagsdata.index.isin(secdata.index)]
+multi_hot = mlb.fit_transform(tagsdata['tags'])
+tagsdata=tagsdata.join(pd.DataFrame(multi_hot, columns=mlb.classes_,index=tagsdata.index))
+tagsdata.drop(columns='tags', inplace=True)
+tagsdata
+#rec_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:3000].index)]
 # %%
 import csv
 
@@ -153,7 +175,7 @@ if (True):
 #rec_data.to_csv("games_dataset/tronc_rec.csv", encoding='utf-8')
 
 # %%
-if(False):
+if(True):
     bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
     #bigdata['steam_deck'].value_counts()
     bigdata.drop(columns=["steam_deck"], inplace=True)
@@ -179,11 +201,38 @@ if(False):
     tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
     data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
     #data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
-    data.drop(columns='Tags', inplace=True)
-    data.dropna(subset=['tags'], inplace=True)
+bigdata
 # %%
+#names_data=bigdata[['title']]
+#names_data
+bigdata['win']=bigdata['win'].astype(float)
+bigdata['mac']=bigdata['mac'].astype(float)
+bigdata['linux']=bigdata['linux'].astype(float)
 
+# %%
+bigdata.loc[bigdata['price_final']==0, "title"]
+# %%
+bigdata.drop(columns=['title', 'user_reviews', 'discount', 'price_original'], inplace=True)
+# %%
+#bigdata
+bigdata['date_release']=pd.to_datetime(bigdata['date_release'])
+bigdata["year"] = bigdata["date_release"].dt.year
+bigdata["month"] = bigdata["date_release"].dt.month
+bigdata.drop(columns="date_release", inplace=True)
+# %%
+scaler= MinMaxScaler()
+num_features=scaler.fit_transform(bigdata[['year', 'month', 'price_final', 'positive_ratio']])
+num_features[:5]
+# %%
+bigdata=bigdata.join(pd.DataFrame(num_features, columns=['year_std', 'month_std', 'price_final_std', 'positive_ratio_std'], index=bigdata.index))
+bigdata.drop(columns=['year', 'month', 'price_final', 'positive_ratio'], inplace=True)
+bigdata['rating']=(bigdata['rating']+4)/8
+# %%
+bigdata
 # %% [markdown]
+# Tags con esplosione in colonne
+# piattaforma con one-hot encode
+# Metacritic, positive_ratio, date-release, price_final, price_original, rating
 # %%
 #grafico dei generi che hanno ricevuto piu' voti (torta e barre)
 #grafico giochi piu' votati(data.head().pie)blabla
@@ -237,14 +286,15 @@ games_pie=pd.qcut(rec_data.index.value_counts(), 10, duplicates='drop').value_co
 games_pie.set_title("Distribuzione dei giochi per numero di recensioni")
 games_pie.set_ylabel("")
 # %%
-data=data.dropna(subset=['tags'])
-# Estrai tutti i generi (tag) da ogni gioco, rimuovi parentesi quadre e spazi, splitta per virgola, poi esplodi in una serie
-all_tags = data['tags'].dropna().explode()
-#Top 10 generi presenti nei videogiochi
-genres_bar=all_tags.value_counts().head(10).plot.bar()
-plt.xlabel("Generi più popolari")
-plt.ylabel("Numero di giochi")
-genres_bar.set_title("Numero di giochi per genere")
+if(False):
+    data=data.dropna(subset=['tags'])
+    # Estrai tutti i generi (tag) da ogni gioco, rimuovi parentesi quadre e spazi, splitta per virgola, poi esplodi in una serie
+    all_tags = data['tags'].dropna().explode()
+    #Top 10 generi presenti nei videogiochi
+    genres_bar=all_tags.value_counts().head(10).plot.bar()
+    plt.xlabel("Generi più popolari")
+    plt.ylabel("Numero di giochi")
+    genres_bar.set_title("Numero di giochi per genere")
 # %%
 #Top 10 generi meno presenti nei videogiochi
 #all_tags.value_counts().tail(10).plot.bar()
@@ -363,15 +413,26 @@ accuracy.rmse(preds_nmf)
 
 
 # %%
+# MATRICE FEATURES
+features_matrix=(bigdata.join(secdata, on="app_id", how="inner")).join(tagsdata, on="app_id", how="inner")
+features_matrix.index.value_counts()
+# %%
 light_data = pd.read_csv("recommendations_half.csv", index_col=0)
 light_data.drop(columns=['date','funny','review_id', "helpful", "hours"], inplace=True)
 light_data.reset_index(inplace=True)
 # %%
-light_data=(light_data.loc[light_data['app_id'].isin(secdata.index)])
-light_data['app_id'].nunique()
+light_data
+# %%
+light_data=(light_data.loc[light_data['app_id'].isin(features_matrix.index)])
+print(light_data['app_id'].nunique())
+
 # %%
 # Elimino i dati con recensioni negative perché uso una recommendation implicita
 light_data=light_data.loc[light_data['is_recommended']==True]
+# %%
+print(light_data['user_id'].nunique())
+print(light_data['app_id'].nunique())
+
 # %%
 N = 12500  # Numero totale di utenti da selezionare
 #FASCE A MANO
@@ -421,6 +482,9 @@ if remaining_slots > 0:
 # --- 3) Filtra il dataset originale ---
 light_data_red = light_data[light_data["user_id"].isin(selected_users["user_id"])]
 
+features_matrix=(features_matrix.loc[features_matrix.index.isin(light_data_red['app_id'].unique())])
+print(features_matrix.index.nunique())
+
 print("Utenti selezionati:", light_data_red["user_id"].nunique())
 print("Recensioni rimaste:", len(light_data_red))
 # %%
@@ -429,6 +493,7 @@ light_data_red['app_id'].nunique()
 # %%
 lightdata=light_data_red
 lightdata
+
 # %%
 
 from lightfm import LightFM
@@ -477,7 +542,10 @@ lightdata['weight'] = lightdata['weight'].astype(float)
 users = lightdata['user_id'].unique()
 items = lightdata['item_id'].unique()
 #  %%
+item_to_index = {item: idx for idx, item in enumerate(features_matrix.index)}
 
+# ordina items_filtered secondo feature_items
+items_sorted = sorted(items, key=lambda x: item_to_index[x])
 # %%
 # ----------------------------------------------------
 # 2) CREAZIONE DEL DATASET E MATRICE DI INTERAZIONI
@@ -537,15 +605,57 @@ for n in param_grid["no_components"]:
                 
                 print(f"n={n}, sched={sched}, lr={lr}, ep={ep} -> prec@10={precision:.4f}, auc={auc:.4f}")
 # %%
+#2° RICERCA IPERPARAMETRI
+
+param_grid = {
+    "no_components": [10, 20, 50, 100],
+    "learning_rate": [0.01, 0.05, 0.1],
+    "epochs": [20, 30, 50, 100]
+}
+
+results = []
+
+for n in param_grid["no_components"]:
+    for lr in param_grid["learning_rate"]:
+        for ep in param_grid["epochs"]:
+            
+            model = LightFM(
+                no_components=n,
+                learning_rate=lr,
+                learning_schedule='adadelta',
+                loss="warp",      # tieni la stessa loss
+                random_state=42
+            )
+            
+            model.fit(train, epochs=ep, num_threads=4, verbose=False)
+            
+            # valutazione
+            precision = precision_at_k(model, test, k=10).mean()
+            auc = auc_score(model, test).mean()
+            
+            results.append({
+                "no_components": n,
+                "lr": lr,
+                "epochs": ep,
+                "precision": precision,
+                "auc": auc
+            })
+            
+            print(f"n={n}, lr={lr}, ep={ep} -> prec@10={precision:.4f}, auc={auc:.4f}")
+                
+
+
+
+# %%
 # ordina per la metrica che preferisci
 results_sorted = sorted(results, key=lambda x: x["precision"], reverse=True)
 results_sorted_auc = sorted(results, key=lambda x: x["auc"], reverse=True)
 
 #print("Miglior combinazione trovata:")
 print("Best precision:\n")
-print(results_sorted)
+print(results_sorted[0])
 print("Best AUC:\n")
-print(results_sorted_auc)
+print(results_sorted_auc[0])
 # %%
 # ----------------------------------------------------
 # 3) CREAZIONE E ADDESTRAMENTO DEL MODELLO
@@ -575,7 +685,7 @@ print(f"Precision@5: {prec:.3f} | AUC: {auc:.3f}")
 # ----------------------------------------------------
 # 5) FUNZIONE PER RACCOMANDARE TOP-K ITEM
 # ----------------------------------------------------
-def recommend_topk(model, dataset, interactions_csr, user_id, k=5):
+def recommend_topk(model, dataset, interactions_csr, user_id, k=5):#qua va feature?
     # Mappature interne da stringhe a indici interi
     user_id_map, _, item_id_map, _ = dataset.mapping()
     u_internal = user_id_map[str(user_id)]
