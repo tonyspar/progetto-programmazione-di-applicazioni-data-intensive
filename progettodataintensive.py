@@ -486,9 +486,16 @@ print("Recensioni rimaste:", len(light_data_red))
 type(light_data_red['app_id'].unique()[0])
 
 # %%
-lightdata=light_data_red
+light_data_red
+# %%
+lightdata_m=light_data.loc[light_data['user_id'].isin((light_data['user_id'].value_counts()).iloc[:7000].index)]
+print(lightdata_m.shape[0])
+print(lightdata_m['app_id'].nunique())
+# %%
+features_matrix=(features_matrix.loc[features_matrix.index.isin(lightdata_m['app_id'].unique())])
+print(features_matrix.index.nunique())
+# %%
 lightdata
-
 # %%
 
 from lightfm import LightFM
@@ -514,6 +521,7 @@ from lightfm.cross_validation import random_train_test_split
 
 # lightdata = il tuo DataFrame in formato wide come quello mostrato
 # Indice = user_id, colonne = app_id, valori booleani o NaN
+lightdata=lightdata_m
 
 # 1. Sostituire i NaN con 0 e i booleani con 1
 lightdata['is_recommended'] = lightdata['is_recommended'].astype(int)
@@ -542,10 +550,14 @@ item_to_index = {item: idx for idx, item in enumerate((features_matrix.index).as
 items_sorted = sorted(items, key=lambda x: item_to_index[x])
 # %%
 features_matrix[['year_std', 'price_final_std']] = features_matrix[['year_std', 'price_final_std']]+1e-6
+
 # %%
 features_matrix.index = features_matrix.index.astype(str)
 # %%
-type(features_matrix.index[0])
+features_matrix
+#lightdata
+#users
+#
 # %%
 # ----------------------------------------------------
 # 2) CREAZIONE DEL DATASET E MATRICE DI INTERAZIONI
@@ -613,7 +625,7 @@ for n in param_grid["no_components"]:
 param_grid = {
     "no_components": [10, 20, 50, 100],
     "learning_rate": [0.01, 0.05, 0.1],
-    "epochs": [20, 30, 50, 100]
+    "epochs": [20, 30, 50]
 }
 
 results = []
@@ -670,9 +682,9 @@ print(results_sorted_auc[0])
 #cambiare learning rate
 #rho e epsilon???
 #migliori parametri finora
-model = LightFM(no_components=100, loss="warp", item_alpha=1e-3, learning_rate=0.1)
+model = LightFM(no_components=20, loss="warp", item_alpha=1e-3, learning_rate=0.1)
 #cambia numero di epoche
-model.fit(train, epochs=100, item_features=item_features, num_threads=4)
+model.fit(train, epochs=20, item_features=item_features, num_threads=4)
 # %%
 # ----------------------------------------------------
 # 4) VALUTAZIONE DEL MODELLO
@@ -684,7 +696,7 @@ prec = precision_at_k(model, test, item_features=item_features, k=10, num_thread
 # abbia punteggio maggiore di uno irrilevante.
 auc = auc_score(model, test, item_features=item_features, num_threads=4).mean()
 
-print(f"Precision@5: {prec} | AUC: {auc:.3f}")
+print(f"Precision@10: {prec} | AUC: {auc:.3f}")
 # %%
 features_matrix.columns
 (model.item_embeddings.mean(axis=1)<1e-3).sum()
