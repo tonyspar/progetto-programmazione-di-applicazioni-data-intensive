@@ -151,10 +151,8 @@ if(not os.path.exists('recommendations_half.csv')):
                 writer.writerow(row)
 # %%
 rec_data = pd.read_csv("recommendations_half.csv", index_col=0)
-lightdata=rec_data.copy()
-rec_data=rec_data.join(tagsdata, on='app_id', how='inner')
 
-if (False):
+if (True):
     #ESTRAZIONE CASUALE IN BASE A VOTO METACRITIC
     random.seed(42)
     def rank_stats(value):
@@ -166,7 +164,7 @@ if (False):
     rec_data.drop(columns=['date','funny','review_id'], inplace=True)
     rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
     rec_data=rec_data.rename(columns={'is_recommended': 'rank'})
-    rec_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:3000].index)]
+    #rec_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:3000].index)]
 
 
 
@@ -179,38 +177,38 @@ if(True):
     bigdata=pd.read_csv("./games_dataset/games.csv", index_col=0)
     #bigdata['steam_deck'].value_counts()
     bigdata.drop(columns=["steam_deck"], inplace=True)
-    def rank_stats_stream(value):
-        mapping = {
-            'overwhelmingly positive': 9-5,
-            'very positive': 8-5,
-            'mostly positive': 7-5,
-            'positive': 6-5,
-            'mixed': 5-5,
-            'negative': 4-5,
-            'mostly negative': 3-5,
-            'overwhelmingly negative': 1-5,
-            'very negative': 2-5
-        }
-        return mapping.get(str(value).lower(), np.nan)
+    #def rank_stats_stream(value):
+    #    mapping = {
+    #        'overwhelmingly positive': 9-5,
+    #        'very positive': 8-5,
+    #        'mostly positive': 7-5,
+    #        'positive': 6-5,
+    #        'mixed': 5-5,
+    #        'negative': 4-5,
+    #        'mostly negative': 3-5,
+    #        'overwhelmingly negative': 1-5,
+    #        'very negative': 2-5
+    #    }
+    #    return mapping.get(str(value).lower(), np.nan)
 
-    bigdata["rating"]= bigdata["rating"].map(rank_stats_stream)
+    #bigdata["rating"]= bigdata["rating"].map(rank_stats_stream)
     bigdata['rating'].unique()
     #rec_data['is_recommended'] = rec_data['is_recommended'].map(rank_stats)
 
     # merge dei dataset
-    tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
-    data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
+    #tempdata=pd.merge(how='left', left=bigdata, right=secdata, left_index=True, right_index=True)
+    #data=pd.merge(how='left', left=tempdata, right=tagsdata, left_index=True, right_index=True)
     #data=pd.merge(how='left', left=data, right=rec_data, left_index=True, right_index=True)
+bigdata.drop(columns='rating', inplace=True)
 bigdata
 # %%
-#names_data=bigdata[['title']]
-#names_data
+names_data=bigdata[['title']]
+names_data
+# %%
 bigdata['win']=bigdata['win'].astype(float)
 bigdata['mac']=bigdata['mac'].astype(float)
 bigdata['linux']=bigdata['linux'].astype(float)
 
-# %%
-bigdata.loc[bigdata['price_final']==0, "title"]
 # %%
 bigdata.drop(columns=['title', 'user_reviews', 'discount', 'price_original'], inplace=True)
 # %%
@@ -220,13 +218,14 @@ bigdata["year"] = bigdata["date_release"].dt.year
 bigdata["month"] = bigdata["date_release"].dt.month
 bigdata.drop(columns="date_release", inplace=True)
 # %%
+rec_data
+# %%
 scaler= MinMaxScaler()
 num_features=scaler.fit_transform(bigdata[['year', 'month', 'price_final', 'positive_ratio']])
 num_features[:5]
 # %%
-bigdata=bigdata.join(pd.DataFrame(num_features, columns=['year_std', 'month_std', 'price_final_std', 'positive_ratio_std'], index=bigdata.index))
-bigdata.drop(columns=['year', 'month', 'price_final', 'positive_ratio'], inplace=True)
-bigdata['rating']=(bigdata['rating']+4)/8
+bigdata_std=bigdata.join(pd.DataFrame(num_features, columns=['year_std', 'month_std', 'price_final_std', 'positive_ratio_std'], index=bigdata.index))
+bigdata_std.drop(columns=['year', 'month', 'price_final', 'positive_ratio'], inplace=True)
 # %%
 bigdata
 # %% [markdown]
@@ -246,7 +245,7 @@ if(False):
     rec_c = xGrafico.dropna(subset=['tags'])
 
 # %%
-rec_data['user_id'].value_counts()
+rec_data
 
 # %%
 user_rew_bar=pd.qcut(rec_data.groupby('user_id').size(), 10, duplicates='drop').value_counts().sort_index().plot.bar()
@@ -297,6 +296,141 @@ if(False):
     genres_bar.set_title("Numero di giochi per genere")
 # %%
 #Top 10 generi meno presenti nei videogiochi
+
+# %%
+# GRAFICO: Distribuzione delle piattaforme supportate
+# Mostra quanti giochi supportano Windows, macOS e Linux
+
+platform_counts = {
+    'Windows': bigdata['win'].sum(),
+    'macOS': bigdata['mac'].sum(),
+    'Linux': bigdata['linux'].sum()
+}
+
+plt.figure(figsize=(8, 5))
+plt.bar(platform_counts.keys(), platform_counts.values(), color=['#0066cc', '#ff9900', '#33cc33'])
+plt.title("Numero di giochi per piattaforma supportata")
+plt.ylabel("Numero di giochi")
+plt.xlabel("Piattaforma")
+for i, v in enumerate(platform_counts.values()):
+    plt.text(i, v + 100, str(int(v)), ha='center', va='bottom')
+plt.show()
+
+# %%
+# GRAFICO: Prezzo dei giochi - Fasce in euro
+# Crea fasce di prezzo e mostra distribuzione con torta e istogramma
+
+bigdata_price = bigdata.copy()
+#bigdata_price['price_final'] = bigdata_price['price_final'] * (bigdata['price_final_std'].max() - bigdata['price_final_std'].min()) + bigdata['price_final_std'].min()
+#
+bins = [0, 10, 30, 80, float('inf')]
+labels = ['0-10€', '10-30€', '30-80€', '>80€']
+bigdata_price['price_bin'] = pd.cut(bigdata_price['price_final'], bins=bins, labels=labels, right=False)
+
+price_counts = bigdata_price['price_bin'].value_counts().sort_index()
+
+# Grafico a torta
+plt.figure(figsize=(12, 5))
+
+# Istogramma
+plt.subplot(1, 2, 2)
+price_counts.plot.bar(color=plt.cm.Paired(range(len(price_counts))))
+plt.title("Numero di giochi per fasce di prezzo")
+plt.ylabel("Numero giochi")
+plt.xlabel("Fascia di prezzo")
+for i, v in enumerate(price_counts):
+    plt.text(i, v + 50, str(v), ha='center', va='bottom')
+plt.tight_layout()
+plt.show()
+
+# %%
+# GRAFICO: Distribuzione del positive_ratio
+# Quanto sono positivi i voti medi dei giochi
+
+bigdata_ratio = bigdata.copy()
+#bigdata_ratio['positive_ratio'] = bigdata_ratio['positive_ratio_std'] * (bigdata['positive_ratio'].max() - bigdata['positive_ratio'].min()) + bigdata['positive_ratio'].min()
+
+plt.figure(figsize=(10, 6))
+plt.hist(bigdata_ratio['positive_ratio'], bins=50, color='skyblue', edgecolor='black', alpha=0.7)
+plt.title("Distribuzione del Positive Ratio (percentuale recensioni positive)")
+plt.xlabel("Positive Ratio (%)")
+plt.ylabel("Numero di giochi")
+plt.grid(axis='y', alpha=0.3)
+plt.show()
+
+# %%
+# GRAFICO: Numero di giochi rilasciati per mese
+# Mostra in quale mese dell'anno escono più giochi
+
+# Assicurati che 'month' esista
+if 'month' not in bigdata.columns:
+    bigdata_temp = pd.read_csv("./games_dataset/games.csv", index_col=0)
+    bigdata_temp['date_release'] = pd.to_datetime(bigdata_temp['date_release'])
+    months = bigdata_temp['date_release'].dt.month
+else:
+    months = bigdata['month']
+
+plt.figure(figsize=(10, 6))
+months.plot.hist(bins=12, color='coral', alpha=0.7, edgecolor='black')
+plt.title("Distribuzione dei giochi per mese di rilascio")
+plt.xlabel("Mese")
+plt.ylabel("Numero di giochi")
+plt.xticks(range(1, 13))
+plt.grid(axis='y', alpha=0.3)
+plt.show()
+
+# %%
+# GRAFICO: Positive Ratio vs Prezzo
+# Esiste una correlazione tra prezzo e qualità percepita?
+
+bigdata_plot = bigdata.copy()
+# Riportiamo i valori standardizzati ai valori originali
+
+plt.figure(figsize=(10, 6))
+plt.scatter(bigdata_plot['price_final'], bigdata_plot['positive_ratio'], alpha=0.5, color='teal')
+plt.title("Positive Ratio vs Prezzo del gioco")
+plt.xlabel("Prezzo (€)")
+plt.ylabel("Positive Ratio (%)")
+plt.grid(True, alpha=0.3)
+plt.show()
+
+
+# Correlazione
+corr = bigdata_plot['price_final'].corr(bigdata_plot['positive_ratio'])
+print(f"Correlazione tra prezzo e positive ratio: {corr:.3f}")
+
+# %%
+# GRAFICO: Numero di recensioni per gioco vs Prezzo
+# I giochi più costosi ricevono più recensioni?
+
+# Conta quante recensioni ha ogni gioco (app_id)
+reviews_per_game = rec_data.reset_index()['app_id'].value_counts()
+reviews_per_game
+# %%
+
+# Unisci con il prezzo
+price_reviews = pd.DataFrame({
+    'price_final': bigdata['price_final'],
+}).join(reviews_per_game, on='app_id', how='inner').rename(columns={'app_id': 'review_count'})
+
+price_reviews
+# %%
+# Rimuovi outliers per una migliore visualizzazione
+price_reviews = price_reviews[price_reviews['count'] < 5000]  # filtro estremi
+
+plt.figure(figsize=(10, 6))
+plt.scatter(price_reviews['price_final'], price_reviews['count'], alpha=0.5, color='purple')
+plt.title("Numero di recensioni per gioco vs Prezzo")
+plt.xlabel("Prezzo (€)")
+plt.ylabel("Numero di recensioni")
+plt.grid(True, alpha=0.3)
+plt.show()
+
+# Correlazione
+corr_reviews_price = price_reviews['price_final'].corr(price_reviews['count'])
+print(f"Correlazione tra prezzo e numero di recensioni: {corr_reviews_price:.3f}")
+
+
 #all_tags.value_counts().tail(10).plot.bar()
 # %%
 
@@ -317,7 +451,8 @@ plt.ylabel("Numero recensioni")
 plt.title("Top 10 tags per media rank nelle recensioni")
 plt.show()
 # %%
-datasurprise=rec_data.drop(columns=["helpful", "hours", "tags"])
+rec_data=rec_data.loc[rec_data['user_id'].isin((rec_data['user_id'].value_counts()).iloc[:3000].index)]
+datasurprise=rec_data.drop(columns=["helpful", "hours"]) #tags
 
 datasurprise
 
@@ -335,11 +470,26 @@ datasurprise=datasurprise.reset_index()
 from surprise import Reader, Dataset, model_selection, SVD, SVDpp, NMF, KNNBasic, KNNWithMeans, accuracy, NormalPredictor
 from surprise.accuracy import rmse, mae
 from sklearn.metrics.pairwise import cosine_similarity
+from surprise.model_selection import GridSearchCV
 # %%
 df_reader = Reader(rating_scale=(1,5))
 datasurprise = Dataset.load_from_df(datasurprise[['user_id', 'app_id', 'rank']], df_reader) 
 # %%
 datasurprise
+# %%
+param_grid = {
+    "k": [50, 100, 300],
+    'sim_options': {
+        'name': ['msd', 'cosine', 'pearson'], 
+        'user_based': [True, False]}
+}
+gs = GridSearchCV(KNNBasic, param_grid, measures=['rmse', 'mae'], cv=5, n_jobs=-1)
+
+gs.fit(datasurprise)
+
+# Migliori parametri trovati
+print("Migliori parametri (RMSE):", gs.best_params['rmse'])
+print("Miglior RMSE:", gs.best_score['rmse'])
 # %%
 # carico il dataset
 # definisco algoritmo da usare e eventuali parametri
@@ -683,19 +833,19 @@ print(results_sorted_auc[0])
 #cambiare learning rate
 #rho e epsilon???
 #migliori parametri finora
-model = LightFM(no_components=20, loss="warp", item_alpha=1e-3, learning_rate=0.1)
+model = LightFM(no_components=100, loss="warp", item_alpha=1e-4, learning_rate=0.1)
 #cambia numero di epoche
-model.fit(train, epochs=20, item_features=item_features, num_threads=4)
+model.fit(train, epochs=100, item_features=item_features, num_threads=8)
 # %%
 # ----------------------------------------------------
 # 4) VALUTAZIONE DEL MODELLO
 # ----------------------------------------------------
 # Precision@K: quanta parte dei primi K suggerimenti è rilevante.
-prec = precision_at_k(model, test, item_features=item_features, k=10, num_threads=4).mean()
+prec = precision_at_k(model, test, item_features=item_features, k=10, num_threads=8).mean()
 
 # AUC (Area Under Curve): probabilità che un item rilevante
 # abbia punteggio maggiore di uno irrilevante.
-auc = auc_score(model, test, item_features=item_features, num_threads=4).mean()
+auc = auc_score(model, test, item_features=item_features, num_threads=8).mean()
 
 print(f"Precision@10: {prec} | AUC: {auc:.3f}")
 # %%
