@@ -154,7 +154,7 @@ rec_data = pd.read_csv("recommendations_half.csv", index_col=0)
 lightdata=rec_data.copy()
 rec_data=rec_data.join(tagsdata, on='app_id', how='inner')
 
-if (True):
+if (False):
     #ESTRAZIONE CASUALE IN BASE A VOTO METACRITIC
     random.seed(42)
     def rank_stats(value):
@@ -415,24 +415,19 @@ accuracy.rmse(preds_nmf)
 # %%
 # MATRICE FEATURES
 features_matrix=(bigdata.join(secdata, on="app_id", how="inner")).join(tagsdata, on="app_id", how="inner")
-features_matrix.index.value_counts()
+features_matrix
 # %%
 light_data = pd.read_csv("recommendations_half.csv", index_col=0)
 light_data.drop(columns=['date','funny','review_id', "helpful", "hours"], inplace=True)
 light_data.reset_index(inplace=True)
-# %%
-light_data
-# %%
-light_data=(light_data.loc[light_data['app_id'].isin(features_matrix.index)])
-print(light_data['app_id'].nunique())
-
-# %%
 # Elimino i dati con recensioni negative perché uso una recommendation implicita
 light_data=light_data.loc[light_data['is_recommended']==True]
+light_data=(light_data.loc[light_data['app_id'].isin(features_matrix.index)])
+
 # %%
 print(light_data['user_id'].nunique())
 print(light_data['app_id'].nunique())
-
+light_data
 # %%
 N = 12500  # Numero totale di utenti da selezionare
 #FASCE A MANO
@@ -481,14 +476,14 @@ if remaining_slots > 0:
 
 # --- 3) Filtra il dataset originale ---
 light_data_red = light_data[light_data["user_id"].isin(selected_users["user_id"])]
-
+# %%
 features_matrix=(features_matrix.loc[features_matrix.index.isin(light_data_red['app_id'].unique())])
 print(features_matrix.index.nunique())
 
 print("Utenti selezionati:", light_data_red["user_id"].nunique())
 print("Recensioni rimaste:", len(light_data_red))
 # %%
-light_data_red['app_id'].nunique()
+type(light_data_red['app_id'].unique()[0])
 
 # %%
 lightdata=light_data_red
@@ -524,7 +519,6 @@ from lightfm.cross_validation import random_train_test_split
 lightdata['is_recommended'] = lightdata['is_recommended'].astype(int)
 # Se hai già True/False, puoi fare: binary_df = lightdata.astype(int)
 lightdata=lightdata.rename(columns={"app_id" : "item_id", "is_recommended" : "weight"})
-print(light_data)
 lightdata = lightdata[['user_id', 'item_id', 'weight']]
 lightdata
 # %%
@@ -542,10 +536,16 @@ lightdata['weight'] = lightdata['weight'].astype(float)
 users = lightdata['user_id'].unique()
 items = lightdata['item_id'].unique()
 #  %%
-item_to_index = {item: idx for idx, item in enumerate(features_matrix.index)}
+item_to_index = {item: idx for idx, item in enumerate((features_matrix.index).astype(str))}
 
 # ordina items_filtered secondo feature_items
 items_sorted = sorted(items, key=lambda x: item_to_index[x])
+# %%
+features_matrix[['year_std', 'price_final_std']] = features_matrix[['year_std', 'price_final_std']]+1e-6
+# %%
+features_matrix.index = features_matrix.index.astype(str)
+# %%
+type(features_matrix.index[0])
 # %%
 # ----------------------------------------------------
 # 2) CREAZIONE DEL DATASET E MATRICE DI INTERAZIONI
@@ -553,11 +553,14 @@ items_sorted = sorted(items, key=lambda x: item_to_index[x])
 # Istanzio un oggetto Dataset che si occuperà di mappare
 # i miei ID testuali (user/item) a indici interi interni.
 dataset = Dataset()
-dataset.fit(users, items)
+dataset.fit(users, items, item_features=features_matrix.columns.tolist())
 
 # Costruisco la matrice delle interazioni (sparsa CSR)
 # a partire dalle tuple utente-item-rating.
 interactions, weights = dataset.build_interactions(lightdata.itertuples(index=False, name=None))
+
+item_features = dataset.build_item_features((item, features_matrix.columns[features_matrix.loc[item] > 0]) 
+     for item in features_matrix.index)
 
 # Suddivido in train e test in modo casuale,
 # mantenendo la distribuzione di interazioni (sparsità).
@@ -666,21 +669,25 @@ print(results_sorted_auc[0])
 #provare con learning_schedule adadelta
 #cambiare learning rate
 #rho e epsilon???
-model = LightFM(loss="warp")
+#migliori parametri finora
+model = LightFM(no_components=100, loss="warp", item_alpha=1e-3, learning_rate=0.1)
 #cambia numero di epoche
-model.fit(train, epochs=20)
+model.fit(train, epochs=100, item_features=item_features, num_threads=4)
 # %%
 # ----------------------------------------------------
 # 4) VALUTAZIONE DEL MODELLO
 # ----------------------------------------------------
 # Precision@K: quanta parte dei primi K suggerimenti è rilevante.
-prec = precision_at_k(model, test, num_threads=4).mean()
+prec = precision_at_k(model, test, item_features=item_features, k=10, num_threads=4).mean()
 
 # AUC (Area Under Curve): probabilità che un item rilevante
 # abbia punteggio maggiore di uno irrilevante.
-auc = auc_score(model, test, num_threads=4).mean()
+auc = auc_score(model, test, item_features=item_features, num_threads=4).mean()
 
-print(f"Precision@5: {prec:.3f} | AUC: {auc:.3f}")
+print(f"Precision@5: {prec} | AUC: {auc:.3f}")
+# %%
+features_matrix.columns
+(model.item_embeddings.mean(axis=1)<1e-3).sum()
 # %%
 # ----------------------------------------------------
 # 5) FUNZIONE PER RACCOMANDARE TOP-K ITEM
